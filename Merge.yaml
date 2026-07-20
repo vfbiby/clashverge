@@ -1,21 +1,24 @@
+# 你的全局扩展配置（Merge）里只需要留这干净的一段：
 dns:
   enable: true
   listen: 0.0.0.0:53
-  enhanced-mode: fake-ip      # 必须是 fake-ip，直接对外部返回虚拟 IP，不给本地 DNS 任何解析机会
+  enhanced-mode: fake-ip
   fake-ip-range: 198.18.0.1/16
 
-  # 只有符合以下策略的，才走国内解析
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+    - 1.1.1.1
+
   nameserver-policy:
     "geosite:cn": [https://dns.alicdn.com/dns-query, https://doh.pub/dns-query]
     "geosite:private": [223.5.5.5]
 
-  # 默认的全局 DNS，对于不属于 geosite:cn（也就是未知的、国外的、随机的）域名，统统强制走国外加密 DNS
   nameserver:
     - https://1.1.1.1/dns-query
     - https://8.8.8.8/dns-query
     - https://dns.cloudflare.com/dns-query
 
-  # 专门用来解析你的机场代理节点域名的 DNS
   proxy-server-nameserver:
     - 223.5.5.5
-    - https://doh.pub/dns-query
+    - 119.29.29.29
