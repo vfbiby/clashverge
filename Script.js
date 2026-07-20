@@ -12,12 +12,19 @@ function main(config, profileName) {
   const claudePattern =
     /(🇺🇸|美国|硅谷|united states|\busa\b|\bus\b)/i;
 
+  const hkSgPattern =
+    /(🇭🇰|香港|hong kong|\bhk\b|🇸🇬|新加坡|狮城|singapore|\bsg\b)/i;
+
   const googleCandidates = [
     ...new Set(allProxyNames.filter((name) => sgOrUsPattern.test(name))),
   ];
 
   const claudeCandidates = [
     ...new Set(allProxyNames.filter((name) => claudePattern.test(name))),
+  ];
+
+  const customCandidates = [
+    ...new Set(allProxyNames.filter((name) => hkSgPattern.test(name))),
   ];
 
   // 先彻底清除所有重复的 Google 相关组（包括订阅中的）
@@ -27,7 +34,8 @@ function main(config, profileName) {
       g?.name === "Google" ||
       g?.name === "Google-API" ||
       g?.name === "Google-Stitch" ||
-      g?.name === "Google-SG-US"
+      g?.name === "Google-SG-US" ||
+      g?.name === "Custom"
     ) {
       return false; // 删除所有旧的 Google 相关组
     }
@@ -72,10 +80,21 @@ function main(config, profileName) {
     proxies: claudeCandidates.length > 0 ? [...claudeCandidates] : ["DIRECT"],
   };
 
+  // Custom 自动选择代理组（香港/新加坡节点）
+  const customGroup = {
+    name: "Custom",
+    type: "url-test",
+    url: "http://www.gstatic.com/generate_204",
+    interval: 300,
+    tolerance: 150,
+    proxies: customCandidates.length > 0 ? [...customCandidates] : ["DIRECT"],
+  };
+
   config["proxy-groups"].unshift(googleStitchGroup);
   config["proxy-groups"].unshift(googleApiGroup);
   config["proxy-groups"].unshift(googleGroup);
   config["proxy-groups"].unshift(claudeGroup);
+  config["proxy-groups"].unshift(customGroup);
 
   const googleApiRules = [
     "DOMAIN-SUFFIX,googleapis.com,Google-API",
@@ -106,7 +125,11 @@ function main(config, profileName) {
     "DOMAIN-SUFFIX,claudeusercontent.com,Claude",
   ];
 
-  const allRules = [...claudeRules, ...googleStitchRules, ...googleApiRules];
+  const customRules = [
+    "DOMAIN-SUFFIX,bygcloud.com,Custom",
+  ];
+
+  const allRules = [...customRules, ...claudeRules, ...googleStitchRules, ...googleApiRules];
   const oldRules = config.rules.filter((rule) => !allRules.includes(rule));
   config.rules = [...allRules, ...oldRules];
 
