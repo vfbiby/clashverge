@@ -65,13 +65,10 @@ function main(config, profileName) {
     proxies: googleCandidates.length > 0 ? [...googleCandidates] : ["DIRECT"],
   };
 
-  // Claude 自动选择代理组
+  // Claude 手动选择代理组
   const claudeGroup = {
     name: "Claude",
-    type: "url-test",
-    url: "https://claude.ai",
-    interval: 300,
-    tolerance: 150,
+    type: "select",
     proxies: claudeCandidates.length > 0 ? [...claudeCandidates] : ["DIRECT"],
   };
 
