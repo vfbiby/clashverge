@@ -1,15 +1,37 @@
 function main(config, profileName) {
+  if (!Array.isArray(config.proxies)) config.proxies = [];
   if (!Array.isArray(config["proxy-groups"])) config["proxy-groups"] = [];
   if (!Array.isArray(config.rules)) config.rules = [];
 
-  const allProxyNames = Array.isArray(config.proxies)
-    ? config.proxies.map((p) => p?.name).filter(Boolean)
-    : [];
+  // 1. 定义你的自定义节点对象
+  const customProxy = {
+    name: "谷歌云-Xray-Reality",
+    type: "vless",
+    server: "35.209.140.15",
+    port: 443,
+    uuid: "93b6b57e-3890-4947-804b-1dc09aa5e226",
+    udp: true,
+    tls: true,
+    flow: "xtls-rprx-vision",
+    servername: "swdist.apple.com", // 已纠正为标准的域名格式
+    "reality-opts": {
+      "public-key": "f4QB7sjLvh62S8nYCMKjk2qZ6aXXp3fWjk52miQO3nI",
+      "short-id": "40cc9a03cdda1002"
+    },
+    "client-fingerprint": "chrome"
+  };
 
-  const sgOrUsPattern = /(🇸🇬|新加坡|狮城|singapore|\bsg\b|🇺🇸|美国|硅谷|united states|\busa\b|\bus\b)/i;
-  const claudePattern = /(🇺🇸|美国|硅谷|united states|\busa\b|\bus\b|🇸🇬|新加坡|狮城|singapore|\bsg\b)/i;
+  // 2. 将节点塞入配置列表最顶部（避免重复添加）
+  if (!config.proxies.some(p => p.name === customProxy.name)) {
+    config.proxies.unshift(customProxy);
+  }
+
+  // 提取所有节点名称
+  const allProxyNames = config.proxies.map((p) => p?.name).filter(Boolean);
+
+  const sgOrUsPattern = /(🇸🇬|新加坡|狮城|singapore|\bsg\b|🇺🇸|美国|硅谷|united states|\busa\b|\bus\b|谷歌云)/i;
+  const claudePattern = /(🇺🇸|美国|硅谷|united states|\busa\b|\bus\b|🇸🇬|新加坡|狮城|singapore|\bsg\b|谷歌云)/i;
   const hkSgPattern = /(🇭🇰|香港|hong kong|\bhk\b|🇸🇬|新加坡|狮城|singapore|\bsg\b)/i;
-
 
   const googleCandidates = [
     ...new Set(allProxyNames.filter((name) => sgOrUsPattern.test(name))),
@@ -23,11 +45,11 @@ function main(config, profileName) {
     ...new Set(allProxyNames.filter((name) => hkSgPattern.test(name))),
   ];
 
-  // 关键修改：过滤掉原订阅中的 Google 组，同时对重复组名去重
+  // 清理冲突策略组
   const seenGroupNames = new Set();
   config["proxy-groups"] = config["proxy-groups"].filter((g) => {
     if (
-      g?.name === "Google" ||        // 过滤掉原订阅的 Google，由我们重新生成
+      g?.name === "Google" ||
       g?.name === "Google-API" ||
       g?.name === "Google-Stitch" ||
       g?.name === "Google-SG-US" ||
@@ -43,7 +65,6 @@ function main(config, profileName) {
     return true;
   });
 
-  // 直接将策略组命名为 "Google"，统一承接订阅自带规则 + 自定义规则
   const googleGroup = {
     name: "Google",
     type: "url-test",
@@ -56,7 +77,7 @@ function main(config, profileName) {
   const googleApiGroup = {
     name: "Google-API",
     type: "select",
-    proxies: ["Google", "DIRECT"],
+    proxies: googleCandidates.length > 0 ? [...googleCandidates] : ["DIRECT"],
   };
 
   const googleStitchGroup = {
