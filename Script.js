@@ -15,6 +15,7 @@ function main(config, profileName) {
     ...new Set(allProxyNames.filter((name) => sgOrUsPattern.test(name))),
   ];
 
+
   const claudeCandidates = [
     ...new Set(allProxyNames.filter((name) => claudePattern.test(name))),
   ];
@@ -34,10 +35,10 @@ function main(config, profileName) {
       g?.name === "Claude" || // 加上这行：防止之前的残留导致 Claude 组过滤失败
       g?.name === "Custom"
     ) {
-      return false; 
+      return false;
     }
     if (seenGroupNames.has(g?.name)) {
-      return false; 
+      return false;
     }
     seenGroupNames.add(g?.name);
     return true;
@@ -45,7 +46,7 @@ function main(config, profileName) {
 
   // 自动选择 Google 节点组
   const googleGroup = {
-    name: "Google-SG-US",
+    name: "Google",
     type: "url-test",
     url: "http://www.gstatic.com/generate_204",
     interval: 300,
@@ -72,8 +73,8 @@ function main(config, profileName) {
   const claudeGroup = {
     name: "Claude",
     type: "select",
-    proxies: claudeCandidates.length > 0 
-      ? [...claudeCandidates, "Google-SG-US", "DIRECT"] 
+    proxies: claudeCandidates.length > 0
+      ? [...claudeCandidates, "Google-SG-US", "DIRECT"]
       : ["Google-SG-US", "DIRECT"],
   };
 
@@ -127,7 +128,7 @@ function main(config, profileName) {
   ];
 
   const allRules = [...customRules, ...claudeRules, ...googleStitchRules, ...googleApiRules];
-  
+
   // 4. 精准过滤旧规则：防止原配置规则中存在空格或大小写不一致导致未去重
   config.rules = [...allRules, ...config.rules.filter((rule) => {
     return !allRules.some(r => r.trim().toLowerCase() === rule.trim().toLowerCase());
