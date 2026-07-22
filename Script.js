@@ -6,15 +6,14 @@ function main(config, profileName) {
     ? config.proxies.map((p) => p?.name).filter(Boolean)
     : [];
 
-  // 1. 修正正则表达式：将字符串中的双反斜杠统一，防止正则匹配失效
   const sgOrUsPattern = /(🇸🇬|新加坡|狮城|singapore|\bsg\b|🇺🇸|美国|硅谷|united states|\busa\b|\bus\b)/i;
-  const claudePattern = /(🇺🇸|美国|硅谷|united states|\busa\b|\bus\b|🇸🇬|新加坡|狮城|singapore|\bsg\b)/i; // 建议加上新加坡，给 Claude 备选
+  const claudePattern = /(🇺🇸|美国|硅谷|united states|\busa\b|\bus\b|🇸🇬|新加坡|狮城|singapore|\bsg\b)/i;
   const hkSgPattern = /(🇭🇰|香港|hong kong|\bhk\b|🇸🇬|新加坡|狮城|singapore|\bsg\b)/i;
+
 
   const googleCandidates = [
     ...new Set(allProxyNames.filter((name) => sgOrUsPattern.test(name))),
   ];
-
 
   const claudeCandidates = [
     ...new Set(allProxyNames.filter((name) => claudePattern.test(name))),
@@ -24,15 +23,15 @@ function main(config, profileName) {
     ...new Set(allProxyNames.filter((name) => hkSgPattern.test(name))),
   ];
 
-  // 彻底清除所有重复的、旧的相关策略组
+  // 关键修改：过滤掉原订阅中的 Google 组，同时对重复组名去重
   const seenGroupNames = new Set();
   config["proxy-groups"] = config["proxy-groups"].filter((g) => {
     if (
-      g?.name === "Google" ||
+      g?.name === "Google" ||        // 过滤掉原订阅的 Google，由我们重新生成
       g?.name === "Google-API" ||
       g?.name === "Google-Stitch" ||
       g?.name === "Google-SG-US" ||
-      g?.name === "Claude" || // 加上这行：防止之前的残留导致 Claude 组过滤失败
+      g?.name === "Claude" ||
       g?.name === "Custom"
     ) {
       return false;
@@ -44,7 +43,7 @@ function main(config, profileName) {
     return true;
   });
 
-  // 自动选择 Google 节点组
+  // 直接将策略组命名为 "Google"，统一承接订阅自带规则 + 自定义规则
   const googleGroup = {
     name: "Google",
     type: "url-test",
@@ -57,7 +56,7 @@ function main(config, profileName) {
   const googleApiGroup = {
     name: "Google-API",
     type: "select",
-    proxies: ["Google-SG-US", "DIRECT"],
+    proxies: ["Google", "DIRECT"],
   };
 
   const googleStitchGroup = {
@@ -69,13 +68,12 @@ function main(config, profileName) {
     proxies: googleCandidates.length > 0 ? [...googleCandidates] : ["DIRECT"],
   };
 
-  // 2. 优化 Claude 组：类型改为 select，并把其它代理组引入作为备选（防止单节点挂掉）
   const claudeGroup = {
     name: "Claude",
     type: "select",
     proxies: claudeCandidates.length > 0
-      ? [...claudeCandidates, "Google-SG-US", "DIRECT"]
-      : ["Google-SG-US", "DIRECT"],
+      ? [...claudeCandidates, "Google", "DIRECT"]
+      : ["Google", "DIRECT"],
   };
 
   const customGroup = {
@@ -87,11 +85,13 @@ function main(config, profileName) {
     proxies: customCandidates.length > 0 ? [...customCandidates] : ["DIRECT"],
   };
 
-  config["proxy-groups"].unshift(googleStitchGroup);
-  config["proxy-groups"].unshift(googleApiGroup);
-  config["proxy-groups"].unshift(googleGroup);
-  config["proxy-groups"].unshift(claudeGroup);
-  config["proxy-groups"].unshift(customGroup);
+  config["proxy-groups"].unshift(
+    customGroup,
+    claudeGroup,
+    googleStitchGroup,
+    googleApiGroup,
+    googleGroup
+  );
 
   const googleApiRules = [
     "DOMAIN-SUFFIX,googleapis.com,Google-API",
@@ -114,7 +114,6 @@ function main(config, profileName) {
     "DOMAIN,accounts.google.com,Google-Stitch",
   ];
 
-  // 3. 增强 Claude 规则拦截面
   const claudeRules = [
     "DOMAIN-SUFFIX,claude.ai,Claude",
     "DOMAIN-SUFFIX,claude.com,Claude",
@@ -129,7 +128,6 @@ function main(config, profileName) {
 
   const allRules = [...customRules, ...claudeRules, ...googleStitchRules, ...googleApiRules];
 
-  // 4. 精准过滤旧规则：防止原配置规则中存在空格或大小写不一致导致未去重
   config.rules = [...allRules, ...config.rules.filter((rule) => {
     return !allRules.some(r => r.trim().toLowerCase() === rule.trim().toLowerCase());
   })];
