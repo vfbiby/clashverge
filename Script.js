@@ -2,7 +2,7 @@ function main(config, profileName) {
   if (!Array.isArray(config.proxies)) config.proxies = [];
   if (!Array.isArray(config["proxy-groups"])) config["proxy-groups"] = [];
   if (!Array.isArray(config.rules)) config.rules = [];
-
+  
   // 1. 定义你的自定义节点对象
   const customProxy = {
     name: "谷歌云-Xray-Reality",
@@ -13,7 +13,7 @@ function main(config, profileName) {
     udp: true,
     tls: true,
     flow: "xtls-rprx-vision",
-    servername: "swdist.apple.com", // 已纠正为标准的域名格式
+    servername: "swdist.apple.com",
     "reality-opts": {
       "public-key": "f4QB7sjLvh62S8nYCMKjk2qZ6aXXp3fWjk52miQO3nI",
       "short-id": "40cc9a03cdda1002"
@@ -21,31 +21,28 @@ function main(config, profileName) {
     "client-fingerprint": "chrome"
   };
 
-  // 2. 将节点塞入配置列表最顶部（避免重复添加）
+  // 2. 将节点塞入配置列表最顶部（内核路由必须注册该节点才能生效）
   if (!config.proxies.some(p => p.name === customProxy.name)) {
     config.proxies.unshift(customProxy);
   }
 
-  // 提取所有节点名称
-  const allProxyNames = config.proxies.map((p) => p?.name).filter(Boolean);
+  // 3. 提取其他所有节点名称（特意过滤掉“谷歌云-Xray-Reality”，防止它进入其他任何策略组）
+  const allProxyNames = config.proxies
+    .map((p) => p?.name)
+    .filter((name) => Boolean(name) && name !== customProxy.name);
 
-  const sgOrUsPattern = /(🇸🇬|新加坡|狮城|singapore|\bsg\b|🇺🇸|美国|硅谷|united states|\busa\b|\bus\b|谷歌云)/i;
-  const claudePattern = /(🇺🇸|美国|硅谷|united states|\busa\b|\bus\b|🇸🇬|新加坡|狮城|singapore|\bsg\b|谷歌云)/i;
+  const sgOrUsPattern = /(🇸🇬|新加坡|狮城|singapore|\bsg\b|🇺🇸|美国|硅谷|united states|\busa\b|\bus\b)/i;
   const hkSgPattern = /(🇭🇰|香港|hong kong|\bhk\b|🇸🇬|新加坡|狮城|singapore|\bsg\b)/i;
 
   const googleCandidates = [
     ...new Set(allProxyNames.filter((name) => sgOrUsPattern.test(name))),
   ];
 
-  const claudeCandidates = [
-    ...new Set(allProxyNames.filter((name) => claudePattern.test(name))),
-  ];
-
   const customCandidates = [
     ...new Set(allProxyNames.filter((name) => hkSgPattern.test(name))),
   ];
 
-  // 清理冲突策略组
+  // 清理旧有的/冲突的策略组
   const seenGroupNames = new Set();
   config["proxy-groups"] = config["proxy-groups"].filter((g) => {
     if (
@@ -63,6 +60,13 @@ function main(config, profileName) {
     }
     seenGroupNames.add(g?.name);
     return true;
+  });
+
+  // 如果原订阅本身自带“节点选择”、“漏网之鱼”或“GLOBAL”等全量策略组，也把自定义节点剔除掉
+  config["proxy-groups"].forEach((group) => {
+    if (Array.isArray(group.proxies)) {
+      group.proxies = group.proxies.filter((p) => p !== customProxy.name);
+    }
   });
 
   const googleGroup = {
@@ -89,11 +93,12 @@ function main(config, profileName) {
     proxies: googleCandidates.length > 0 ? [...googleCandidates] : ["DIRECT"],
   };
 
+  // 4. 专属 Claude 策略组（独占该节点）
   const claudeGroup = {
-      name: "Claude",
-      type: "select",
-      proxies: ["谷歌云-Xray-Reality"],
-    };
+    name: "Claude",
+    type: "select",
+    proxies: [customProxy.name],
+  };
 
   const customGroup = {
     name: "Custom",
