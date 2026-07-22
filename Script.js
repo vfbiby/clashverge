@@ -90,12 +90,10 @@ function main(config, profileName) {
   };
 
   const claudeGroup = {
-    name: "Claude",
-    type: "select",
-    proxies: claudeCandidates.length > 0
-      ? [...claudeCandidates, "Google", "DIRECT"]
-      : ["Google", "DIRECT"],
-  };
+      name: "Claude",
+      type: "select",
+      proxies: ["谷歌云-Xray-Reality"],
+    };
 
   const customGroup = {
     name: "Custom",
