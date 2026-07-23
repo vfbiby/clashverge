@@ -2,7 +2,7 @@ function main(config, profileName) {
   if (!Array.isArray(config.proxies)) config.proxies = [];
   if (!Array.isArray(config["proxy-groups"])) config["proxy-groups"] = [];
   if (!Array.isArray(config.rules)) config.rules = [];
-  
+
   // 1. 定义你的自定义节点对象
   const customProxy = {
     name: "谷歌云-Xray-Reality",
@@ -31,7 +31,7 @@ function main(config, profileName) {
     .map((p) => p?.name)
     .filter((name) => Boolean(name) && name !== customProxy.name);
 
-  const sgOrUsPattern = /(🇸🇬|新加坡|狮城|singapore|\bsg\b|🇺🇸|美国|硅谷|united states|\busa\b|\bus\b)/i;
+  const sgOrUsPattern = /(🇸🇬|新加坡|狮城|singapore|\bsg\b|hong kong||🇺🇸|美国|硅谷|united states|\busa\b|\bus\b)/i;
   const hkSgPattern = /(🇭🇰|香港|hong kong|\bhk\b|🇸🇬|新加坡|狮城|singapore|\bsg\b)/i;
 
   const googleCandidates = [
@@ -71,8 +71,9 @@ function main(config, profileName) {
 
   const googleGroup = {
     name: "Google",
-    type: "url-test",
-    url: "http://www.gstatic.com/generate_204",
+    // type: "url-test",
+    type: "select",
+    // url: "http://www.gstatic.com/generate_204",
     interval: 300,
     tolerance: 150,
     proxies: googleCandidates.length > 0 ? [...googleCandidates] : ["DIRECT"],
@@ -86,8 +87,9 @@ function main(config, profileName) {
 
   const googleStitchGroup = {
     name: "Google-Stitch",
-    type: "url-test",
-    url: "http://www.gstatic.com/generate_204",
+    type: "select",
+    // type: "url-test",
+    // url: "http://www.gstatic.com/generate_204",
     interval: 300,
     tolerance: 150,
     proxies: googleCandidates.length > 0 ? [...googleCandidates] : ["DIRECT"],
@@ -102,8 +104,9 @@ function main(config, profileName) {
 
   const customGroup = {
     name: "Custom",
-    type: "url-test",
-    url: "http://www.gstatic.com/generate_204",
+    type: "select",
+    // type: "url-test",
+    // url: "http://www.gstatic.com/generate_204",
     interval: 300,
     tolerance: 150,
     proxies: customCandidates.length > 0 ? [...customCandidates] : ["DIRECT"],
@@ -148,6 +151,8 @@ function main(config, profileName) {
 
   const customRules = [
     "DOMAIN-SUFFIX,bygcloud.com,Custom",
+    "DOMAIN-SUFFIX,lxtrd.cn.com,Custom",
+
   ];
 
   const allRules = [...customRules, ...claudeRules, ...googleStitchRules, ...googleApiRules];
