@@ -132,7 +132,8 @@ function main(config, profileName) {
 
   const customRules = [
     "DOMAIN-SUFFIX,bygcloud.com,Custom",
-    "DOMAIN-SUFFIX,lxtrd.cn.com,Custom"
+    "DOMAIN-SUFFIX,lxtrd.cn.com,Custom",
+    "DOMAIN-SUFFIX,anzo-asset.com,Custom"
   ];
 
   const priorityRules = [...customRules, ...claudeRules, ...myGoogleRules];
