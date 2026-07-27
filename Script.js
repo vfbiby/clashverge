@@ -66,29 +66,42 @@ function main(config, profileName) {
     ...new Set(allProxyNames.filter((name) => hkSgPattern.test(name))),
   ];
 
-  // 4. 新建目标策略组（包含自建节点）
+  // 检查原配置里是否存在 Proxies 分组
+  const targetGroupName = "Proxies";
+  const hasProxiesGroup = config["proxy-groups"].some((g) => g?.name === targetGroupName);
+  const proxiesGroupInsert = hasProxiesGroup ? [targetGroupName] : [];
+
+  // 4. 新建目标策略组（包含自建节点和 Proxies 分组）
   const myGoogleGroup = {
     name: "MyGoogle",
     type: "select",
-    proxies: [...customProxyNames],
+    proxies: [...customProxyNames, ...proxiesGroupInsert],
     // proxies: [...customProxyNames, ...googleCandidates],
   };
 
   const claudeGroup = {
     name: "Claude",
     type: "select",
-    proxies: [customProxyNames[1]],
+    proxies: [customProxyNames[1], ...proxiesGroupInsert],
   };
 
+  // Custom 组（走代理）
   const customGroup = {
     name: "Custom",
     type: "select",
-    proxies: [...customProxyNames],
+    proxies: [...customProxyNames, ...proxiesGroupInsert],
     // proxies: [...customProxyNames, ...customCandidates],
   };
 
+  // CustomDirect 组（走直连，保留 DIRECT 及 Proxies 选项方便灵活切换）
+  const customDirectGroup = {
+    name: "CustomDirect",
+    type: "select",
+    proxies: ["DIRECT", ...proxiesGroupInsert],
+  };
+
   // 直接将新组插到前面（不清理任何原有的组）
-  config["proxy-groups"].unshift(myGoogleGroup, claudeGroup, customGroup);
+  config["proxy-groups"].unshift(myGoogleGroup, claudeGroup, customGroup, customDirectGroup);
 
   // 5. 专属路由规则（带详细注释）
   const myGoogleRules = [
@@ -130,13 +143,22 @@ function main(config, profileName) {
     "DOMAIN-SUFFIX,claudeusercontent.com,Claude"
   ];
 
+  // 自定义代理规则（走 Custom 组）
   const customRules = [
     "DOMAIN-SUFFIX,bygcloud.com,Custom",
     "DOMAIN-SUFFIX,lxtrd.cn.com,Custom",
     "DOMAIN-SUFFIX,anzo-asset.com,Custom"
   ];
 
-  const priorityRules = [...customRules, ...claudeRules, ...myGoogleRules];
+  // 自定义直连规则（走 CustomDirect 组，需直连的域名写在这里）
+  const customDirectRules = [
+    // 示例："DOMAIN-SUFFIX,example.cn,CustomDirect"
+    "DOMAIN-SUFFIX,rtoc.cc,CustomDirect",
+    "DOMAIN-SUFFIX,apple.com,CustomDirect",
+    "DOMAIN-SUFFIX,deepseek.com,CustomDirect",
+  ];
+
+  const priorityRules = [...customDirectRules, ...customRules, ...claudeRules, ...myGoogleRules];
 
   // 6. 将自定义规则优先级提升至最顶端，原规则置后
   config.rules = [
