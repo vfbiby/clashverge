@@ -22,3 +22,24 @@ dns:
   proxy-server-nameserver:
     - 223.5.5.5
     - 119.29.29.29
+
+# 开启域名嗅探，强行覆盖死 IP 目标
+sniffer:
+  enable: true
+  override-destination: true
+  force-dns-mapping: true
+  parse-pure-ip: true
+  sniff:
+    TLS:
+      ports: [443, 8443]
+    HTTP:
+      ports: [80, 8080-8880]
+      override-destination: true
+
+# === Claude 防泄漏死 IP 映射 ===
+# 198.18.254.254 claude.ai
+# 198.18.254.254 www.claude.ai
+# 198.18.254.254 api.anthropic.com
+# 198.18.254.254 stats.anthropic.com
+# 198.18.254.254 anthropic.com
+# 198.18.254.254 www.anthropic.com
