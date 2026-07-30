@@ -36,10 +36,24 @@ sniffer:
       ports: [80, 8080-8880]
       override-destination: true
 
-# === Claude 防泄漏死 IP 映射 ===
+# === Claude & Anthropic 防泄漏诱饵 IP 映射 ===
+
+# # 1. claude.ai 主域
 # 198.18.254.254 claude.ai
 # 198.18.254.254 www.claude.ai
-# 198.18.254.254 api.anthropic.com
-# 198.18.254.254 stats.anthropic.com
+
+# # 2. anthropic.com API 与追踪
 # 198.18.254.254 anthropic.com
 # 198.18.254.254 www.anthropic.com
+# 198.18.254.254 api.anthropic.com
+# 198.18.254.254 stats.anthropic.com
+
+# # 3. 补充域名 (claude.com / clau.de)
+# 198.18.254.254 claude.com
+# 198.18.254.254 www.claude.com
+# 198.18.254.254 clau.de
+# 198.18.254.254 www.clau.de
+
+# # 4. 用户附件与内容托管
+# 198.18.254.254 claudeusercontent.com
+# 198.18.254.254 www.claudeusercontent.com
