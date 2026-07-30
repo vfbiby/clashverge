@@ -147,15 +147,18 @@ function main(config, profileName) {
   const customRules = [
     "DOMAIN-SUFFIX,bygcloud.com,Custom",
     "DOMAIN-SUFFIX,lxtrd.cn.com,Custom",
-    "DOMAIN-SUFFIX,anzo-asset.com,Custom"
+    "DOMAIN-SUFFIX,anzo-asset.com,Custom",
+    
   ];
 
   // 自定义直连规则（走 CustomDirect 组，需直连的域名写在这里）
   const customDirectRules = [
     // 示例："DOMAIN-SUFFIX,example.cn,CustomDirect"
-    "DOMAIN-SUFFIX,rtoc.cc,CustomDirect",
+    // "DOMAIN-SUFFIX,rtoc.cc,CustomDirect",
     "DOMAIN-SUFFIX,apple.com,CustomDirect",
     "DOMAIN-SUFFIX,deepseek.com,CustomDirect",
+    "DOMAIN-SUFFIX,qianwenai.com,Custom",
+    "DOMAIN-SUFFIX,volces.com,Custom",
   ];
 
   const priorityRules = [...customDirectRules, ...customRules, ...claudeRules, ...myGoogleRules];
