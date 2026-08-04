@@ -92,8 +92,8 @@ function main(config, profileName) {
   const claudeGroup = {
     name: "Claude",
     type: "select",
-    // 默认 GCP200G，vless LAX 作为备选
-    proxies: ["GCP200G", "🇺🇸 USA_Los_LAX-DC2 xtls-reality", ...proxiesGroupInsert],
+    // 仅使用自建节点，默认 GCP200G，vless LAX 作为备选（不加订阅组）
+    proxies: ["GCP200G", "🇺🇸 USA_Los_LAX-DC2 xtls-reality"],
   };
 
   // Custom 组（走代理）
