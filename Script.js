@@ -6,23 +6,6 @@ function main(config, profileName) {
   // 1. 定义自建节点
   const myCustomProxies = [
     {
-      name: "DG500G",
-      type: "vless",
-      server: "68.183.18.95",
-      port: 12050,
-      uuid: "9f6ebdbe-2224-4094-a7c5-edc620a966b4",
-      encryption: "",
-      tls: true,
-      servername: "www.amd.com",
-      flow: "xtls-rprx-vision",
-      "client-fingerprint": "chrome",
-      "reality-opts": {
-        "public-key": "ckruM6FelHaT23bL4LnT9-gBANGkrnbCuexpxJlfK1c",
-        "short-id": "8e9f0e0d6fccc6"
-      },
-      network: "tcp"
-    },
-    {
       name: "GCP200G",
       type: "vless",
       server: "35.209.140.15",
@@ -36,6 +19,22 @@ function main(config, profileName) {
       "reality-opts": {
         "public-key": "tB9a1_1pLvqKF7QxxSUFJAUY6uJUzGXI-EdeBjl0zVg",
         "short-id": "7474eb"
+      },
+      network: "tcp"
+    },
+    {
+      name: "🇺🇸 USA_Los_LAX-DC2 xtls-reality",
+      type: "vless",
+      server: "154.53.75.226",
+      port: 8881,
+      uuid: "decf85cf-9aca-4328-a071-3837631098eb",
+      encryption: "",
+      tls: true,
+      servername: "addons.mozilla.org",
+      flow: "xtls-rprx-vision",
+      "client-fingerprint": "chrome",
+      "reality-opts": {
+        "public-key": "XLY4_lSmUIrs53Ae2LYqpjEWKM7HuAvtOE5t2JNM83c"
       },
       network: "tcp"
     }
@@ -82,7 +81,8 @@ function main(config, profileName) {
   const claudeGroup = {
     name: "Claude",
     type: "select",
-    proxies: [customProxyNames[1], ...proxiesGroupInsert],
+    // 默认 GCP200G，vless LAX 作为备选
+    proxies: ["GCP200G", "🇺🇸 USA_Los_LAX-DC2 xtls-reality", ...proxiesGroupInsert],
   };
 
   // Custom 组（走代理）
@@ -155,7 +155,7 @@ function main(config, profileName) {
   const customDirectRules = [
     // 示例："DOMAIN-SUFFIX,example.cn,CustomDirect"
     // "DOMAIN-SUFFIX,rtoc.cc,CustomDirect",
-    "DOMAIN-SUFFIX,apple.com,CustomDirect",
+    // "DOMAIN-SUFFIX,apple.com,CustomDirect",
     "DOMAIN-SUFFIX,deepseek.com,CustomDirect",
     "DOMAIN-SUFFIX,qianwenai.com,Custom",
     "DOMAIN-SUFFIX,volces.com,Custom",
