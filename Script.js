@@ -65,10 +65,21 @@ function main(config, profileName) {
     ...new Set(allProxyNames.filter((name) => hkSgPattern.test(name))),
   ];
 
-  // 检查原配置里是否存在 Proxies 分组
-  const targetGroupName = "Proxies";
-  const hasProxiesGroup = config["proxy-groups"].some((g) => g?.name === targetGroupName);
-  const proxiesGroupInsert = hasProxiesGroup ? [targetGroupName] : [];
+  // 查找原配置里的主分组（Proxies / 节点选择 等），兼容 emoji 前缀的模糊匹配
+  function findMainGroupName(groups) {
+    // 1. 精确匹配 Proxies
+    if (groups.some((g) => g?.name === "Proxies")) return "Proxies";
+    // 2. 去掉 emoji/符号/空白后按关键字模糊匹配
+    const clean = (s) => String(s ?? "").replace(/[^\w一-龥]/g, "").toLowerCase();
+    const matched = groups.find((g) => {
+      const c = clean(g?.name);
+      return /prox/.test(c) || c.includes("节点选择") || c.includes("代理");
+    });
+    return matched ? matched.name : null;
+  }
+
+  const targetGroupName = findMainGroupName(config["proxy-groups"]);
+  const proxiesGroupInsert = targetGroupName ? [targetGroupName] : [];
 
   // 4. 新建目标策略组（包含自建节点和 Proxies 分组）
   const myGoogleGroup = {
