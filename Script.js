@@ -6,23 +6,6 @@ function main(config, profileName) {
   // 1. 定义自建节点
   const myCustomProxies = [
     {
-      name: "GCP200G",
-      type: "vless",
-      server: "35.209.140.15",
-      port: 443,
-      uuid: "6f614bf8-6d36-4803-a8f2-3833f87464a1",
-      encryption: "",
-      tls: true,
-      servername: "www.intel.com",
-      flow: "xtls-rprx-vision",
-      "client-fingerprint": "chrome",
-      "reality-opts": {
-        "public-key": "tB9a1_1pLvqKF7QxxSUFJAUY6uJUzGXI-EdeBjl0zVg",
-        "short-id": "7474eb"
-      },
-      network: "tcp"
-    },
-    {
       name: "🇺🇸 USA_Los_LAX-DC2 xtls-reality",
       type: "vless",
       server: "154.53.75.226",
@@ -73,7 +56,7 @@ function main(config, profileName) {
     const clean = (s) => String(s ?? "").replace(/[^\w一-龥]/g, "").toLowerCase();
     const matched = groups.find((g) => {
       const c = clean(g?.name);
-      return /prox/.test(c) || c.includes("节点选择") || c.includes("代理");
+      return /prox/.test(c) || c.includes("节点选择") || c.includes("代理") || c.includes("自动选择") || c.includes("故障转移") || c.includes("xboard") || c.includes("node10");
     });
     return matched ? matched.name : null;
   }
@@ -172,7 +155,12 @@ function main(config, profileName) {
     "DOMAIN-SUFFIX,volces.com,Custom",
   ];
 
-  const priorityRules = [...customDirectRules, ...customRules, ...claudeRules, ...myGoogleRules];
+  // 面板域名走节点（国内直连 CF 的 443 常被重置，必须走代理）
+  const panelRules = [
+    "DOMAIN-SUFFIX,node10.de5.net,MyGoogle",
+  ];
+
+  const priorityRules = [...panelRules, ...customDirectRules, ...customRules, ...claudeRules, ...myGoogleRules];
 
   // 6. 将自定义规则优先级提升至最顶端，原规则置后
   config.rules = [
