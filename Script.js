@@ -75,8 +75,8 @@ function main(config, profileName) {
   const claudeGroup = {
     name: "Claude",
     type: "select",
-    // 仅使用自建节点，默认 GCP200G，vless LAX 作为备选（不加订阅组）
-    proxies: ["GCP200G", "🇺🇸 USA_Los_LAX-DC2 xtls-reality"],
+    // 仅使用自建节点（不加订阅组）
+    proxies: ["🇺🇸 USA_Los_LAX-DC2 xtls-reality"],
   };
 
   // Custom 组（走代理）
@@ -151,8 +151,9 @@ function main(config, profileName) {
     // "DOMAIN-SUFFIX,rtoc.cc,CustomDirect",
     // "DOMAIN-SUFFIX,apple.com,CustomDirect",
     "DOMAIN-SUFFIX,deepseek.com,CustomDirect",
-    "DOMAIN-SUFFIX,qianwenai.com,Custom",
-    "DOMAIN-SUFFIX,volces.com,Custom",
+    "DOMAIN-SUFFIX,qianwenai.com,CustomDirect",
+    "DOMAIN-SUFFIX,volces.com,CustomDirect",
+    // "DOMAIN-SUFFIX,api.rtoc.cc,Custom",
   ];
 
   // 面板域名走节点（国内直连 CF 的 443 常被重置，必须走代理）

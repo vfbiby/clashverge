@@ -1,0 +1,65 @@
+# ============================================
+# MonetaProxy — 单站点专用代理
+# 功能: 仅 monetamarket.com 走节点, 其他网站全部直连
+# 修改要代理的域名请编辑底部 rules 部分
+# ============================================
+
+mixed-port: 7891          # 本地代理端口 (避开 Clash Verge 的 7890)
+allow-lan: false
+mode: rule
+log-level: info
+
+# DNS: fake-ip, 国内 DNS 优先, 不依赖任何外部数据库
+dns:
+  enable: true
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+    - https://dns.alidns.com/dns-query
+
+# 域名嗅探 (兼容按 IP 直连的请求)
+sniffer:
+  enable: true
+  override-destination: true
+  force-dns-mapping: true
+  sniff:
+    TLS:
+      ports: [443, 8443]
+    HTTP:
+      ports: [80, 8080-8880]
+      override-destination: true
+
+# --- 自建节点 (来自 Script.js) ---
+proxies:
+  - name: "USA_LAX"
+    type: vless
+    server: 154.53.75.226
+    port: 8881
+    uuid: "decf85cf-9aca-4328-a071-3837631098eb"
+    encryption: ""
+    tls: true
+    servername: "addons.mozilla.org"
+    flow: "xtls-rprx-vision"
+    client-fingerprint: chrome
+    reality-opts:
+      public-key: "XLY4_lSmUIrs53Ae2LYqpjEWKM7HuAvtOE5t2JNM83c"
+    network: tcp
+
+proxy-groups:
+  - name: PROXY
+    type: select
+    proxies:
+      - "USA_LAX"
+
+rules:
+  # --- monetamarket.com: 主域及所有子域走节点 ---
+  - DOMAIN-SUFFIX,monetamarket.com,PROXY
+  # --- 保险: 含 monetamarket 的其它域名 (CDN/变体) ---
+  - DOMAIN-KEYWORD,monetamarket,PROXY
+  # --- 其余所有网站直连 (能开的开, 开不了的保持原样) ---
+  - MATCH,DIRECT
