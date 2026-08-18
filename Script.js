@@ -142,7 +142,7 @@ function main(config, profileName) {
     "DOMAIN-SUFFIX,bygcloud.com,Custom",
     "DOMAIN-SUFFIX,lxtrd.cn.com,Custom",
     "DOMAIN-SUFFIX,anzo-asset.com,Custom",
-    
+
   ];
 
   // 自定义直连规则（走 CustomDirect 组，需直连的域名写在这里）
@@ -159,7 +159,7 @@ function main(config, profileName) {
   // 面板与 Cloudflare 托管域名走节点（国内直连 CF 的 443 常被重置，走 Custom 代理组）
   const panelRules = [
     "DOMAIN-SUFFIX,node10.de5.net,Custom",
-    "DOMAIN-SUFFIX,ccwu.cc,Custom",
+    "DOMAIN-SUFFIX,muskzhang.ccwu.cc,Custom",
   ];
 
   const priorityRules = [...panelRules, ...customDirectRules, ...customRules, ...claudeRules, ...myGoogleRules];
