@@ -142,6 +142,7 @@ function main(config, profileName) {
     "DOMAIN-SUFFIX,bygcloud.com,Custom",
     "DOMAIN-SUFFIX,lxtrd.cn.com,Custom",
     "DOMAIN-SUFFIX,rtoc.cc,Custom",
+    "DOMAIN-SUFFIX,mtapi.io,Custom",
     "DOMAIN-SUFFIX,anzo-asset.com,Custom",
 
   ];

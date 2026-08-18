@@ -9,5 +9,6 @@ MonetaProxy/mihomo.gz
 MonetaProxy/mihomo.pid
 MonetaProxy/mihomo.log
 MonetaProxy/cache.db
-
-
+# MonetaProxy-Windows 编译产物
+MonetaProxy-Windows/MonetaProxy.exe
+MonetaProxy-Windows/embedded/sing-box.exe
