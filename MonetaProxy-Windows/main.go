@@ -25,8 +25,8 @@ var iconData []byte
 const (
 	ProxyAddr     = "127.0.0.1:7891"
 	TargetWebsite = "https://monetamarkets.com"
-	AppName       = "MonetaProxy"
-	AppTitle      = "MonetaProxy - 单站点专用代理"
+	AppName       = "MonetaMarkets"
+	AppTitle      = "MonetaMarkets - 专属安全加速通道"
 )
 
 var (
@@ -47,29 +47,29 @@ func onReady() {
 	systray.SetTitle(AppName)
 	systray.SetTooltip(AppTitle)
 
-	// 1. 释放并启动 sing-box 核心
+	// 1. 释放并启动专属隧道内核
 	if err := startCore(); err != nil {
-		fmt.Printf("启动核心失败: %v\n", err)
+		fmt.Printf("启动内核失败: %v\n", err)
 	}
 
-	// 2. 默认开启系统代理
+	// 2. 默认开启安全隧道接入
 	setSystemProxy(true)
 
 	// 3. 构建右键菜单
-	mStatus := systray.AddMenuItem("🟢 代理状态：已连接 (127.0.0.1:7891)", "当前代理状态")
+	mStatus := systray.AddMenuItem("🟢 专用隧道：已连接", "专属安全通道连接状态")
 	mStatus.Disable()
 
-	mToggle := systray.AddMenuItem("⏸ 暂停代理（直连）", "切换系统代理开关")
+	mToggle := systray.AddMenuItem("⏸ 暂停专用隧道", "切换专用通道连接状态")
 	systray.AddSeparator()
 
-	mOpen := systray.AddMenuItem("🌐 打开 Moneta 官网", "在默认浏览器中打开目标网站")
+	mOpen := systray.AddMenuItem("🌐 访问 Moneta 官网", "在默认浏览器中打开业务网站")
 	systray.AddSeparator()
 
 	isAuto := checkAutoStart()
-	mAutoStart := systray.AddMenuItemCheckbox("🔄 开机自动启动", "开机时自动在后台启动", isAuto)
+	mAutoStart := systray.AddMenuItemCheckbox("🔄 开机自动连接", "开机时自动建立专用隧道", isAuto)
 	systray.AddSeparator()
 
-	mExit := systray.AddMenuItem("❌ 退出程序", "关闭代理并退出")
+	mExit := systray.AddMenuItem("❌ 退出程序", "断开专用通道并安全退出")
 
 	// 事件监听
 	mToggle.Click(func() {
@@ -78,14 +78,14 @@ func onReady() {
 		proxyState = !proxyState
 		if proxyState {
 			setSystemProxy(true)
-			mStatus.SetTitle("🟢 代理状态：已连接 (127.0.0.1:7891)")
-			mToggle.SetTitle("⏸ 暂停代理（直连）")
-			systray.SetTooltip("MonetaProxy - 代理已连接")
+			mStatus.SetTitle("🟢 专用隧道：已连接")
+			mToggle.SetTitle("⏸ 暂停专用隧道")
+			systray.SetTooltip("MonetaMarkets 专用隧道 - 已连接")
 		} else {
 			setSystemProxy(false)
-			mStatus.SetTitle("⚪ 代理状态：已暂停（直连）")
-			mToggle.SetTitle("▶️ 启用代理")
-			systray.SetTooltip("MonetaProxy - 代理已暂停")
+			mStatus.SetTitle("⚪ 专用隧道：已暂停")
+			mToggle.SetTitle("▶️ 开启专用隧道")
+			systray.SetTooltip("MonetaMarkets 专用隧道 - 已暂停")
 		}
 	})
 

@@ -20,16 +20,16 @@ else
   fi
 fi
 
-# 设置系统代理 (对所有网络服务生效)
+# 设置安全专用隧道 (对所有网络服务生效)
 for svc in $(networksetup -listallnetworkservices 2>/dev/null | tail -n +2); do
   networksetup -setwebproxy "$svc" 127.0.0.1 $PORT >/dev/null 2>&1
   networksetup -setsecurewebproxy "$svc" 127.0.0.1 $PORT >/dev/null 2>&1
   networksetup -setwebproxystate "$svc" on >/dev/null 2>&1
   networksetup -setsecurewebproxystate "$svc" on >/dev/null 2>&1
 done
-echo "✅ 系统代理已开启 (monetamarkets.com 走节点, 其他网站直连)"
+echo "✅ 专用安全通道已开启 (monetamarkets.com 专属加速, 其他网站正常直连)"
 
-osascript -e 'display notification "monetamarkets.com 代理已启动" with title "MonetaProxy"' 2>/dev/null
+osascript -e 'display notification "MonetaMarkets 专用安全隧道已连接" with title "Moneta 专线接入"' 2>/dev/null
 echo ""
-echo "提示: 停止请双击 stop.command, 查看状态请双击 status.command"
+echo "提示: 暂停请双击 stop.command, 查看状态请双击 status.command"
 read -p "按回车键关闭窗口..."

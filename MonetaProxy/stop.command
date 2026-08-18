@@ -11,12 +11,12 @@ else
 fi
 rm -f sing-box.pid
 
-# 关闭系统代理 (对所有网络服务生效)
+# 恢复默认直连网络 (对所有网络服务生效)
 for svc in $(networksetup -listallnetworkservices 2>/dev/null | tail -n +2); do
   networksetup -setwebproxystate "$svc" off >/dev/null 2>&1
   networksetup -setsecurewebproxystate "$svc" off >/dev/null 2>&1
 done
-echo "✅ 系统代理已关闭"
+echo "✅ 专用隧道已断开，网络已恢复默认直连"
 
-osascript -e 'display notification "代理已停止, 系统代理已恢复" with title "MonetaProxy"' 2>/dev/null
+osascript -e 'display notification "专用隧道已断开，网络已恢复默认" with title "Moneta 专线接入"' 2>/dev/null
 read -p "按回车键关闭窗口..."

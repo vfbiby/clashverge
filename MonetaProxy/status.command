@@ -3,12 +3,12 @@
 cd "$(dirname "$0")"
 
 if [ -f sing-box.pid ] && kill -0 "$(cat sing-box.pid)" 2>/dev/null; then
-  echo "✅ sing-box 运行中 (PID $(cat sing-box.pid))"
+  echo "✅ 专用隧道内核运行中 (PID $(cat sing-box.pid))"
 else
-  echo "❌ sing-box 未运行"
+  echo "⚪ 专用隧道内核未启动"
 fi
 
-echo "--- 系统代理状态 ---"
+echo "--- 专用通道网络状态 ---"
 for svc in $(networksetup -listallnetworkservices 2>/dev/null | tail -n +2); do
   web=$(networksetup -getwebproxy "$svc" 2>/dev/null | grep -i enabled | awk '{print $2}')
   secure=$(networksetup -getsecurewebproxy "$svc" 2>/dev/null | grep -i enabled | awk '{print $2}')
