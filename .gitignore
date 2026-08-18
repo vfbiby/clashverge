@@ -1,9 +1,13 @@
 .DS_Store
 
 # MonetaProxy 运行时文件（二进制与日志不入库）
+MonetaProxy/sing-box
+MonetaProxy/sing-box.pid
+MonetaProxy/sing-box.log
 MonetaProxy/mihomo
 MonetaProxy/mihomo.gz
 MonetaProxy/mihomo.pid
 MonetaProxy/mihomo.log
 MonetaProxy/cache.db
+
 

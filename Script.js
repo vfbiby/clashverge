@@ -141,6 +141,7 @@ function main(config, profileName) {
   const customRules = [
     "DOMAIN-SUFFIX,bygcloud.com,Custom",
     "DOMAIN-SUFFIX,lxtrd.cn.com,Custom",
+    "DOMAIN-SUFFIX,rtoc.cc,Custom",
     "DOMAIN-SUFFIX,anzo-asset.com,Custom",
 
   ];
@@ -153,7 +154,6 @@ function main(config, profileName) {
     "DOMAIN-SUFFIX,deepseek.com,CustomDirect",
     "DOMAIN-SUFFIX,qianwenai.com,CustomDirect",
     "DOMAIN-SUFFIX,volces.com,CustomDirect",
-    // "DOMAIN-SUFFIX,api.rtoc.cc,Custom",
   ];
 
   // 面板与 Cloudflare 托管域名走节点（国内直连 CF 的 443 常被重置，走 Custom 代理组）
