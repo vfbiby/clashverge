@@ -41,9 +41,11 @@
     "rules": [
       {
         "domain_suffix": [
+          "monetamarkets.com",
           "monetamarket.com"
         ],
         "domain_keyword": [
+          "monetamarkets",
           "monetamarket"
         ],
         "outbound": "proxy"

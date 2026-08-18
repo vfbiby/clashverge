@@ -27,9 +27,9 @@ for svc in $(networksetup -listallnetworkservices 2>/dev/null | tail -n +2); do
   networksetup -setwebproxystate "$svc" on >/dev/null 2>&1
   networksetup -setsecurewebproxystate "$svc" on >/dev/null 2>&1
 done
-echo "✅ 系统代理已开启 (monetamarket.com 走节点, 其他网站直连)"
+echo "✅ 系统代理已开启 (monetamarkets.com 走节点, 其他网站直连)"
 
-osascript -e 'display notification "monetamarket.com 代理已启动" with title "MonetaProxy"' 2>/dev/null
+osascript -e 'display notification "monetamarkets.com 代理已启动" with title "MonetaProxy"' 2>/dev/null
 echo ""
 echo "提示: 停止请双击 stop.command, 查看状态请双击 status.command"
 read -p "按回车键关闭窗口..."

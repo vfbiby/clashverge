@@ -24,7 +24,7 @@ var iconData []byte
 
 const (
 	ProxyAddr     = "127.0.0.1:7891"
-	TargetWebsite = "https://monetamarket.com"
+	TargetWebsite = "https://monetamarkets.com"
 	AppName       = "MonetaProxy"
 	AppTitle      = "MonetaProxy - 单站点专用代理"
 )
