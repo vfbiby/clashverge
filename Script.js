@@ -156,9 +156,10 @@ function main(config, profileName) {
     // "DOMAIN-SUFFIX,api.rtoc.cc,Custom",
   ];
 
-  // 面板域名走节点（国内直连 CF 的 443 常被重置，必须走代理）
+  // 面板与 Cloudflare 托管域名走节点（国内直连 CF 的 443 常被重置，走 Custom 代理组）
   const panelRules = [
-    "DOMAIN-SUFFIX,node10.de5.net,MyGoogle",
+    "DOMAIN-SUFFIX,node10.de5.net,Custom",
+    "DOMAIN-SUFFIX,ccwu.cc,Custom",
   ];
 
   const priorityRules = [...panelRules, ...customDirectRules, ...customRules, ...claudeRules, ...myGoogleRules];
