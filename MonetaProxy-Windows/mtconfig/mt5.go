@@ -56,24 +56,16 @@ type MT5ServerInfoEx struct {
 	S6AC        int64
 }
 
-// MT5 接入点组
-type MT5AccessEx struct {
-	RawRec    [MT5AccessRecExSize]byte // 3160 字节
-	Addresses []*MT5AddressRecEx
-}
-
-// MT5 具体的接入点地址 (1284 字节)
-type MT5AddressRecEx struct {
-	S0   int32  // 4 字节
-	S4   string // 512 字节 UTF-16LE (IP/域名:端口, 如 "1.2.3.4:443")
-	S204 string // 512 字节 UTF-16LE
-	S404 [256]byte
+// MT5 接入点组 (标准 MT5 AccessRec 结构: 356 字节)
+type MT5Access struct {
+	Name      string   // 64 字节 UTF-16LE (如 "AS01", "Access Point 1")
+	Addresses []string // 接入点地址列表 (128 字节 UTF-16LE, 如 "18.162.222.24:443")
 }
 
 // MT5 整体 Server 对象
 type MT5Server struct {
 	Info     *MT5ServerInfoEx
-	Accesses []*MT5AccessEx
+	Accesses []*MT5Access
 }
 
 // 辅助：UTF-16LE 编解码
@@ -191,28 +183,19 @@ func DeserializeMT5ServerInfoEx(rawDecrypted []byte) (*MT5ServerInfoEx, error) {
 	return s, nil
 }
 
-// 序列化 AddressRecEx (1284 字节加密)
-func (a *MT5AddressRecEx) SerializeEncrypted() []byte {
-	buf := make([]byte, MT5AddressRecExSize)
-	PutLeInt32(buf[0:4], a.S0)
-	copy(buf[4:516], EncodeUtf16LE(a.S4, 512))
-	copy(buf[516:1028], EncodeUtf16LE(a.S204, 512))
-	copy(buf[1028:1284], a.S404[:])
+// 序列化 AccessRec (356 字节加密)
+func SerializeAccessRec(name string) []byte {
+	buf := make([]byte, MT5AccessRecSize)
+	copy(buf[0:64], EncodeUtf16LE(name, 64))
+	PutLeInt32(buf[196:200], 2177) // sC4 默认值 2177
 	return MT5EasyCrypt(buf)
 }
 
-// 反序列化 AddressRecEx
-func DeserializeMT5AddressRecEx(rawDecrypted []byte) (*MT5AddressRecEx, error) {
-	if len(rawDecrypted) < MT5AddressRecExSize {
-		return nil, fmt.Errorf("buffer too small for AddressRecEx: %d < %d", len(rawDecrypted), MT5AddressRecExSize)
-	}
-	a := &MT5AddressRecEx{
-		S0:   LeInt32(rawDecrypted[0:4]),
-		S4:   DecodeUtf16LE(rawDecrypted[4:516]),
-		S204: DecodeUtf16LE(rawDecrypted[516:1028]),
-	}
-	copy(a.S404[:], rawDecrypted[1028:1284])
-	return a, nil
+// 序列化 AddressRec (148 字节加密)
+func SerializeAddressRec(addr string) []byte {
+	buf := make([]byte, MT5AddressRecSize)
+	copy(buf[0:128], EncodeUtf16LE(addr, 128))
+	return MT5EasyCrypt(buf)
 }
 
 // 读取 servers.dat 文件
@@ -253,31 +236,57 @@ func ReadServersDat(filePath string) ([]*MT5Server, *MT5DatHeader, error) {
 			Info: info,
 		}
 
-		// 2. 读取 Accesses (老版数量)
+		// 2. 读取 Accesses (标准 MT5 AccessRec: 356B + AddressRec: 148B)
 		if offset+4 > len(data) {
 			break
 		}
 		accCount := LeInt32(data[offset : offset+4])
 		offset += 4
+
 		if accCount > 0 && accCount <= 128 {
+			server.Accesses = make([]*MT5Access, 0, accCount)
 			for i := 0; i < int(accCount); i++ {
 				if offset+MT5AccessRecSize > len(data) {
 					break
 				}
+				encAcc := make([]byte, MT5AccessRecSize)
+				copy(encAcc, data[offset:offset+MT5AccessRecSize])
 				offset += MT5AccessRecSize
+
+				decAcc := MT5EasyDecrypt(encAcc)
+				accName := DecodeUtf16LE(decAcc[0:64])
 
 				if offset+4 > len(data) {
 					break
 				}
 				addrCount := LeInt32(data[offset : offset+4])
 				offset += 4
+
+				var addrs []string
 				if addrCount > 0 && addrCount <= 128 {
-					offset += int(addrCount) * MT5AddressRecSize
+					for j := 0; j < int(addrCount); j++ {
+						if offset+MT5AddressRecSize > len(data) {
+							break
+						}
+						encAddr := make([]byte, MT5AddressRecSize)
+						copy(encAddr, data[offset:offset+MT5AddressRecSize])
+						offset += MT5AddressRecSize
+
+						decAddr := MT5EasyDecrypt(encAddr)
+						addrStr := DecodeUtf16LE(decAddr[0:128])
+						if addrStr != "" {
+							addrs = append(addrs, addrStr)
+						}
+					}
 				}
+				server.Accesses = append(server.Accesses, &MT5Access{
+					Name:      accName,
+					Addresses: addrs,
+				})
 			}
 		}
 
-		// 3. 读取 AccessesEx 数量
+		// 3. 读取 AccessesEx 数量并跳过
 		if offset+4 > len(data) {
 			break
 		}
@@ -285,44 +294,20 @@ func ReadServersDat(filePath string) ([]*MT5Server, *MT5DatHeader, error) {
 		offset += 4
 
 		if accExCount > 0 && accExCount <= 128 {
-			server.Accesses = make([]*MT5AccessEx, 0, accExCount)
 			for i := 0; i < int(accExCount); i++ {
 				if offset+MT5AccessRecExSize > len(data) {
 					break
 				}
-				encAcc := make([]byte, MT5AccessRecExSize)
-				copy(encAcc, data[offset:offset+MT5AccessRecExSize])
 				offset += MT5AccessRecExSize
 
-				decAcc := MT5EasyDecrypt(encAcc)
-				accessEx := &MT5AccessEx{}
-				copy(accessEx.RawRec[:], decAcc)
-
-				// 读取 Addresses 数量
 				if offset+4 > len(data) {
 					break
 				}
 				addrCount := LeInt32(data[offset : offset+4])
 				offset += 4
-
 				if addrCount > 0 && addrCount <= 128 {
-					accessEx.Addresses = make([]*MT5AddressRecEx, 0, addrCount)
-					for j := 0; j < int(addrCount); j++ {
-						if offset+MT5AddressRecExSize > len(data) {
-							break
-						}
-						encAddr := make([]byte, MT5AddressRecExSize)
-						copy(encAddr, data[offset:offset+MT5AddressRecExSize])
-						offset += MT5AddressRecExSize
-
-						decAddr := MT5EasyDecrypt(encAddr)
-						addr, err := DeserializeMT5AddressRecEx(decAddr)
-						if err == nil {
-							accessEx.Addresses = append(accessEx.Addresses, addr)
-						}
-					}
+					offset += int(addrCount) * MT5AddressRecExSize
 				}
-				server.Accesses = append(server.Accesses, accessEx)
 			}
 		}
 
@@ -347,34 +332,31 @@ func SaveServersDat(filePath string, servers []*MT5Server, header *MT5DatHeader)
 	out.Write(header.Serialize())
 
 	for _, srv := range servers {
-		// 1. 写入加密 ServerInfoEx
+		// 1. 写入加密 ServerInfoEx (1716 字节)
 		out.Write(srv.Info.SerializeEncrypted())
 
-		// 2. 写入 Accesses 数量 (0)
+		// 2. 写入 Accesses 数量
 		numBuf := make([]byte, 4)
-		PutLeInt32(numBuf, 0)
-		out.Write(numBuf)
-
-		// 3. 写入 AccessesEx 数量
 		PutLeInt32(numBuf, int32(len(srv.Accesses)))
 		out.Write(numBuf)
 
-		// 4. 写入每一个 AccessEx
+		// 写入每一个 Access (356B + addrs)
 		for _, acc := range srv.Accesses {
-			rawRecEnc := make([]byte, MT5AccessRecExSize)
-			copy(rawRecEnc, acc.RawRec[:])
-			MT5EasyCrypt(rawRecEnc)
-			out.Write(rawRecEnc)
+			out.Write(SerializeAccessRec(acc.Name))
 
 			// 写入 Addresses 数量
 			PutLeInt32(numBuf, int32(len(acc.Addresses)))
 			out.Write(numBuf)
 
-			// 写入每一个 AddressRecEx
+			// 写入每一个 AddressRec (148B)
 			for _, addr := range acc.Addresses {
-				out.Write(addr.SerializeEncrypted())
+				out.Write(SerializeAddressRec(addr))
 			}
 		}
+
+		// 3. 写入 AccessesEx 数量 (0)
+		PutLeInt32(numBuf, 0)
+		out.Write(numBuf)
 	}
 
 	_ = os.MkdirAll(filepath.Dir(filePath), 0755)
@@ -385,8 +367,10 @@ func SaveServersDat(filePath string, servers []*MT5Server, header *MT5DatHeader)
 func ConvertRawToMT5(rawList []ServerGroupRaw) []*MT5Server {
 	var servers []*MT5Server
 	for _, item := range rawList {
-		var addrs []*MT5AddressRecEx
-		for _, n := range item.Nodes {
+		var accesses []*MT5Access
+		var allAddrs []string
+
+		for i, n := range item.Nodes {
 			addr := n.ResolvedIP
 			if addr == "" {
 				addr = n.OriginalAddress
@@ -394,14 +378,18 @@ func ConvertRawToMT5(rawList []ServerGroupRaw) []*MT5Server {
 			if addr == "" {
 				continue
 			}
-			addrs = append(addrs, &MT5AddressRecEx{
-				S4: addr,
+			allAddrs = append(allAddrs, addr)
+
+			// 每个节点作为一个 Access Point
+			accesses = append(accesses, &MT5Access{
+				Name:      fmt.Sprintf("AS%02d", i+1),
+				Addresses: []string{addr},
 			})
 		}
 
 		defaultAddr := ""
-		if len(addrs) > 0 {
-			defaultAddr = addrs[0].S4
+		if len(allAddrs) > 0 {
+			defaultAddr = allAddrs[0]
 		}
 
 		srv := &MT5Server{
@@ -410,11 +398,7 @@ func ConvertRawToMT5(rawList []ServerGroupRaw) []*MT5Server {
 				CompanyName: item.CompanyName,
 				Address:     defaultAddr,
 			},
-			Accesses: []*MT5AccessEx{
-				{
-					Addresses: addrs,
-				},
-			},
+			Accesses: accesses,
 		}
 		servers = append(servers, srv)
 	}

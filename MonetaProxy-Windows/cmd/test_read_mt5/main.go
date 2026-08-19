@@ -36,7 +36,7 @@ func main() {
 				fmt.Printf("      - 接入组[%d] 地址数: %d\n", j+1, len(acc.Addresses))
 				for k, addr := range acc.Addresses {
 					if k < 2 {
-						fmt.Printf("          -> 地址: %s\n", addr.S4)
+						fmt.Printf("          -> 地址: %s\n", addr)
 					}
 				}
 			}
