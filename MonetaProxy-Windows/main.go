@@ -11,6 +11,7 @@ import (
 
 	"github.com/energye/systray"
 	"golang.org/x/sys/windows/registry"
+	"monetaproxy-windows/mtconfig"
 )
 
 //go:embed embedded/sing-box.exe
@@ -62,6 +63,10 @@ func onReady() {
 	mToggle := systray.AddMenuItem("⏸ 暂停专用隧道", "切换专用通道连接状态")
 	systray.AddSeparator()
 
+	mUpdateMT4 := systray.AddMenuItem("📊 一键配置 MT4 服务器...", "选择 MT4 快捷方式或目录注入 Moneta 交易服务器")
+	mUpdateMT5 := systray.AddMenuItem("📈 一键配置 MT5 服务器...", "选择 MT5 快捷方式或目录注入 Moneta 交易服务器")
+	systray.AddSeparator()
+
 	mOpen := systray.AddMenuItem("🌐 访问 Moneta 官网", "在默认浏览器中打开业务网站")
 	systray.AddSeparator()
 
@@ -89,6 +94,14 @@ func onReady() {
 		}
 	})
 
+	mUpdateMT4.Click(func() {
+		go handleUpdateMT4()
+	})
+
+	mUpdateMT5.Click(func() {
+		go handleUpdateMT5()
+	})
+
 	mOpen.Click(func() {
 		openBrowser(TargetWebsite)
 	})
@@ -106,6 +119,90 @@ func onReady() {
 	mExit.Click(func() {
 		systray.Quit()
 	})
+}
+
+func handleUpdateMT4() {
+	selected, err := mtconfig.SelectMetaTraderFile("请选择 MT4 快捷方式、terminal.exe 或安装目录", "MetaTrader 4", "*.exe;*.lnk")
+	if err != nil {
+		return
+	}
+
+	targetDir, err := mtconfig.ResolveMetaTraderDirectory(selected)
+	if err != nil {
+		mtconfig.ShowMessageBox("错误", fmt.Sprintf("解析 MT4 路径失败: %v", err), true)
+		return
+	}
+
+	allDirs := mtconfig.FindAllMatchingTerminalDirs(targetDir)
+	monetaServers, err := mtconfig.GetMonetaMT4Servers()
+	if err != nil {
+		mtconfig.ShowMessageBox("错误", fmt.Sprintf("获取 Moneta MT4 服务器列表失败: %v", err), true)
+		return
+	}
+
+	successCount := 0
+	for _, d := range allDirs {
+		cfgDir := filepath.Join(d, "config")
+		if _, err := os.Stat(cfgDir); err == nil {
+			if _, err := mtconfig.InjectMT4Directory(cfgDir, monetaServers); err == nil {
+				successCount++
+			}
+		}
+	}
+
+	if successCount > 0 {
+		mtconfig.ShowMessageBox("配置成功", fmt.Sprintf("已成功为 MT4 写入 %d 个 Moneta 官方交易服务器！\n\n请启动 MT4 即可在登录或开户列表中直接选择。", len(monetaServers)), false)
+	} else {
+		cfgDir := filepath.Join(targetDir, "config")
+		if _, err := mtconfig.InjectMT4Directory(cfgDir, monetaServers); err == nil {
+			mtconfig.ShowMessageBox("配置成功", fmt.Sprintf("已成功为 MT4 写入 %d 个 Moneta 官方交易服务器！\n\n请启动 MT4 即可在登录或开户列表中直接选择。", len(monetaServers)), false)
+		} else {
+			mtconfig.ShowMessageBox("提示", "未找到有效的 MT4 配置目录，请确保选中正确的 MT4 快捷方式或目录。", true)
+		}
+	}
+}
+
+func handleUpdateMT5() {
+	selected, err := mtconfig.SelectMetaTraderFile("请选择 MT5 快捷方式、terminal64.exe 或安装目录", "MetaTrader 5", "*.exe;*.lnk")
+	if err != nil {
+		return
+	}
+
+	targetDir, err := mtconfig.ResolveMetaTraderDirectory(selected)
+	if err != nil {
+		mtconfig.ShowMessageBox("错误", fmt.Sprintf("解析 MT5 路径失败: %v", err), true)
+		return
+	}
+
+	allDirs := mtconfig.FindAllMatchingTerminalDirs(targetDir)
+	monetaServers, err := mtconfig.GetMonetaMT5Servers()
+	if err != nil {
+		mtconfig.ShowMessageBox("错误", fmt.Sprintf("获取 Moneta MT5 服务器列表失败: %v", err), true)
+		return
+	}
+
+	successCount := 0
+	for _, d := range allDirs {
+		for _, sub := range []string{"config", "Bases", "bases"} {
+			subDir := filepath.Join(d, sub)
+			if _, err := os.Stat(subDir); err == nil {
+				if _, err := mtconfig.InjectMT5Directory(subDir, monetaServers); err == nil {
+					successCount++
+				}
+			}
+		}
+	}
+
+	if successCount > 0 {
+		mtconfig.ShowMessageBox("配置成功", fmt.Sprintf("已成功为 MT5 写入 %d 个 Moneta 官方交易服务器！\n\n请启动 MT5 即可在登录列表中直接选择。", len(monetaServers)), false)
+	} else {
+		cfgDir := filepath.Join(targetDir, "config")
+		if _, err := mtconfig.InjectMT5Directory(cfgDir, monetaServers); err == nil {
+			mtconfig.ShowMessageBox("配置成功", fmt.Sprintf("已成功为 MT5 写入 %d 个 Moneta 官方交易服务器！\n\n请启动 MT5 即可在登录列表中直接选择。", len(monetaServers)), false)
+		} else {
+			mtconfig.ShowMessageBox("提示", "未找到有效的 MT5 配置目录，请确保选中正确的 MT5 快捷方式或目录。", true)
+		}
+	}
 }
 
 func onExit() {
