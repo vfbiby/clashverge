@@ -228,7 +228,7 @@ func ReadServersDat(filePath string) ([]*MT5Server, *MT5DatHeader, error) {
 
 		decInfo := MT5EasyDecrypt(encInfo)
 		info, err := DeserializeMT5ServerInfoEx(decInfo)
-		if err != nil || info.ServerName == "" {
+		if err != nil || info.ServerName == "" || !isCleanServerName(info.ServerName) {
 			break
 		}
 
@@ -453,3 +453,21 @@ func InjectMT5Directory(configOrBasesDir string, monetaServers []*MT5Server) (in
 
 	return len(monetaServers), nil
 }
+
+// 辅助：检查是否为合法未损坏的券商服务器名称
+func isCleanServerName(name string) bool {
+	name = strings.TrimSpace(name)
+	runes := []rune(name)
+	if len(runes) < 2 || len(runes) > 64 {
+		return false
+	}
+	validCount := 0
+	for _, r := range runes {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') ||
+			r == ' ' || r == '-' || r == '_' || r == '.' || r == '(' || r == ')' {
+			validCount++
+		}
+	}
+	return float64(validCount)/float64(len(runes)) >= 0.9
+}
+
