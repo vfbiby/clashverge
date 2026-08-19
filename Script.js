@@ -144,7 +144,10 @@ function main(config, profileName) {
     "DOMAIN-SUFFIX,rtoc.cc,Custom",
     "DOMAIN-SUFFIX,mtapi.io,Custom",
     "DOMAIN-SUFFIX,anzo-asset.com,Custom",
-
+    "DOMAIN-SUFFIX,lirunexcn.com,Custom",
+    "DOMAIN-SUFFIX,166268.xyz,Custom",
+    "DOMAIN-SUFFIX,axelprivatemarket.com,Custom",
+    "DOMAIN-SUFFIX,axpmprime.com,Custom",
   ];
 
   // 自定义直连规则（走 CustomDirect 组，需直连的域名写在这里）
