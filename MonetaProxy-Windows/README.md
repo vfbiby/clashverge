@@ -20,6 +20,12 @@
 
 在 Mac 或 Linux 环境下进入该目录，运行：
 ```bash
+# 默认编译（不使用 UPX 压缩，体积约 25MB）
 ./build.sh
+
+# 使用 UPX 压缩（极简体积，约 6.6MB）
+./build.sh --upx
+# 或
+./build.sh -u
 ```
 即可重新生成 `MonetaProxy.exe`。
