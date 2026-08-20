@@ -109,6 +109,28 @@ function parseProxyLink(link: string) {
       };
     }
     return proxy;
+  } else if (link.startsWith("anytls://")) {
+    const url = new URL(link);
+    const password = url.username;
+    const server = url.hostname;
+    const port = parseInt(url.port || "443", 10);
+    const sni = url.searchParams.get("sni") || url.searchParams.get("servername") || server;
+    const alpnStr = url.searchParams.get("alpn") || "h2";
+    const fp = url.searchParams.get("fp") || url.searchParams.get("client-fingerprint") || "chrome";
+    const name = decodeURIComponent(url.hash.replace("#", "") || `${server}:${port}`);
+    return {
+      name,
+      type: "anytls",
+      server,
+      port,
+      password,
+      sni,
+      alpn: alpnStr.split(","),
+      "client-fingerprint": fp,
+      "skip-cert-verify": true,
+      udp: true,
+      tfo: false,
+    };
   } else if (link.startsWith("ss://")) {
     const name = link.includes("#") ? decodeURIComponent(link.split("#")[1]) : "Shadowsocks";
     let mainPart = link.replace("ss://", "").split("#")[0];
@@ -156,7 +178,7 @@ function parseProxyLink(link: string) {
       "skip-cert-verify": false,
     };
   }
-  throw new Error("不支持的节点链接协议，目前支持 vless://, ss://, trojan://");
+  throw new Error("不支持的节点链接协议，目前支持 anytls://, vless://, ss://, trojan://");
 }
 
 interface WsData {
@@ -313,7 +335,6 @@ const server = serve<WsData>({
         const testUrl = "http://www.gstatic.com/generate_204";
         const timeout = 5000;
 
-        // 并发测试延迟（最多限制 20 并发）
         const testSingle = async (proxyName: string) => {
           try {
             const encoded = encodeURIComponent(proxyName);
@@ -324,7 +345,7 @@ const server = serve<WsData>({
               const data: any = await res.json();
               results[proxyName] = data.delay || 0;
             } else {
-              results[proxyName] = -1; // 超时或错误
+              results[proxyName] = -1;
             }
           } catch {
             results[proxyName] = -1;
@@ -405,20 +426,17 @@ const server = serve<WsData>({
     let pathname = decodeURIComponent(url.pathname);
     if (pathname === "/" || pathname === "/custom") pathname = "/index.html";
     
-    // Check dist first (Vite output)
     let distPath = path.join(DIST_DIR, pathname);
     let distFile = Bun.file(distPath);
     if (await distFile.exists()) {
       return new Response(distFile, { headers: { "Cache-Control": "no-cache" } });
     }
 
-    // Fallback to dist/index.html for SPA routes
     let distIndex = Bun.file(path.join(DIST_DIR, "index.html"));
     if (await distIndex.exists()) {
       return new Response(distIndex, { headers: { "Cache-Control": "no-cache" } });
     }
 
-    // Fallback to public/
     let publicPath = path.join(CODE_DIR, "public", pathname);
     let publicFile = Bun.file(publicPath);
     if (await publicFile.exists()) {

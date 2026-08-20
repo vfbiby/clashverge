@@ -10,6 +10,10 @@ interface ProxyItem {
   flow?: string;
   cipher?: string;
   password?: string;
+  sni?: string;
+  alpn?: string[];
+  'client-fingerprint'?: string;
+  'skip-cert-verify'?: boolean;
   tls?: boolean;
   'reality-opts'?: { 'public-key'?: string };
 }
@@ -60,7 +64,22 @@ export default function App() {
   // Proxy Edit / Import Modal State
   const [proxyModalOpen, setProxyModalOpen] = createSignal(false);
   const [editingProxyIndex, setEditingProxyIndex] = createSignal(-1);
-  const [proxyForm, setProxyForm] = createSignal<any>({ name: '', type: 'vless', server: '', port: 443, uuid: '', servername: '', flow: 'xtls-rprx-vision', publicKey: '', cipher: 'aes-128-gcm', password: '' });
+  const [proxyForm, setProxyForm] = createSignal<any>({
+    name: '',
+    type: 'vless',
+    server: '',
+    port: 443,
+    uuid: '',
+    servername: '',
+    flow: 'xtls-rprx-vision',
+    publicKey: '',
+    cipher: 'aes-128-gcm',
+    password: '',
+    sni: '',
+    alpn: 'h2',
+    clientFingerprint: 'chrome',
+    skipCertVerify: true,
+  });
   const [importModalOpen, setImportModalOpen] = createSignal(false);
   const [linkToImport, setLinkToImport] = createSignal('');
 
@@ -203,7 +222,7 @@ export default function App() {
     }
   };
 
-  // Latency Testing - ONLY tests the specified nodes
+  // Latency Testing - ONLY tests specified nodes
   const testNodeDelay = async (nodeNames: string[]) => {
     if (!nodeNames || nodeNames.length === 0) return;
     const filterValid = nodeNames.filter(n => n !== 'DIRECT' && n !== 'REJECT');
@@ -319,7 +338,6 @@ export default function App() {
     setSelectedNodes(selectedNodes().filter(n => n !== nodeName));
   };
 
-  // Clean all missing/orphaned nodes from current modal selection
   const clearMissingNodes = () => {
     const missing = new Set(missingSelectedNodes());
     setSelectedNodes(selectedNodes().filter(n => !missing.has(n)));
@@ -383,7 +401,22 @@ export default function App() {
 
   const openAddProxy = () => {
     setEditingProxyIndex(-1);
-    setProxyForm({ name: '', type: 'vless', server: '', port: 443, uuid: '', servername: '', flow: 'xtls-rprx-vision', publicKey: '', cipher: 'aes-128-gcm', password: '' });
+    setProxyForm({
+      name: '',
+      type: 'vless',
+      server: '',
+      port: 443,
+      uuid: '',
+      servername: '',
+      flow: 'xtls-rprx-vision',
+      publicKey: '',
+      cipher: 'aes-128-gcm',
+      password: '',
+      sni: '',
+      alpn: 'h2',
+      clientFingerprint: 'chrome',
+      skipCertVerify: true,
+    });
     setProxyModalOpen(true);
   };
 
@@ -401,6 +434,10 @@ export default function App() {
       publicKey: p['reality-opts']?.['public-key'] || '',
       cipher: p.cipher || '',
       password: p.password || '',
+      sni: p.sni || '',
+      alpn: (p.alpn || ['h2']).join(','),
+      clientFingerprint: p['client-fingerprint'] || 'chrome',
+      skipCertVerify: p['skip-cert-verify'] ?? true,
     });
     setProxyModalOpen(true);
   };
@@ -417,21 +454,35 @@ export default function App() {
       server: f.server,
       port: Number(f.port) || 443,
     };
+
     if (f.type === 'vless') {
       p.uuid = f.uuid;
       p.encryption = '';
       p.tls = true;
       p.servername = f.servername;
       p.flow = f.flow || undefined;
-      p['client-fingerprint'] = 'chrome';
+      p['client-fingerprint'] = f.clientFingerprint || 'chrome';
       p.network = 'tcp';
       if (f.publicKey) {
         p['reality-opts'] = { 'public-key': f.publicKey };
       }
+    } else if (f.type === 'anytls') {
+      p.password = f.password;
+      p.sni = f.sni || f.server;
+      p.alpn = (f.alpn || 'h2').split(',').map((s: string) => s.trim());
+      p['client-fingerprint'] = f.clientFingerprint || 'chrome';
+      p['skip-cert-verify'] = f.skipCertVerify ?? true;
+      p.udp = true;
+      p.tfo = false;
     } else if (f.type === 'ss') {
       p.cipher = f.cipher;
       p.password = f.password;
+    } else if (f.type === 'trojan') {
+      p.password = f.password;
+      p.sni = f.sni || f.server;
+      p['skip-cert-verify'] = f.skipCertVerify ?? false;
     }
+
     const idx = editingProxyIndex();
     if (idx === -1) {
       setProxies([...proxies(), p]);
@@ -856,13 +907,13 @@ export default function App() {
           </div>
         </Show>
 
-        {/* ==================== TAB 3: 自建节点 ==================== */}
+        {/* ==================== TAB 3: 自建节点 (支持 AnyTLS, VLESS, Reality, SS, Trojan) ==================== */}
         <Show when={activeTab() === 'proxies'}>
           <div class="space-y-4">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-800/40 p-4 rounded-xl border border-slate-800">
               <div>
                 <h2 class="text-base font-semibold text-white">自建私有节点管理</h2>
-                <p class="text-xs text-slate-400 mt-0.5">自建节点会自动注入到配置顶层，可在上方的策略组中直接勾选使用。</p>
+                <p class="text-xs text-slate-400 mt-0.5">原生支持 <b class="text-cyan-400 font-mono">AnyTLS</b>、<b class="text-purple-400 font-mono">Reality</b>、<b class="text-blue-400 font-mono">VLESS</b> 等私有协议，自动注入顶层配置。</p>
               </div>
               <div class="flex items-center space-x-2">
                 <button onClick={() => testNodeDelay(proxies().map(p => p.name))} class="text-xs sm:text-sm px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg transition flex items-center gap-1.5">
@@ -895,13 +946,26 @@ export default function App() {
                       <div class="flex-1 pr-3">
                         <div class="flex items-center gap-2 flex-wrap">
                           <span class="font-medium text-slate-100 text-sm sm:text-base">{p.name}</span>
-                          <span class="px-2 py-0.5 rounded text-xs font-mono uppercase bg-blue-500/20 text-blue-400 border border-blue-500/30">{p.type}</span>
+                          <span class={`px-2 py-0.5 rounded text-xs font-mono uppercase border ${
+                            p.type === 'anytls' ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30 font-bold' :
+                            p.type === 'vless' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
+                            'bg-indigo-500/20 text-indigo-400 border-indigo-500/30'
+                          }`}>{p.type}</span>
+                          <Show when={p.tls}>
+                            <span class="px-1.5 py-0.5 rounded text-xs bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">TLS</span>
+                          </Show>
+                          <Show when={p['reality-opts']}>
+                            <span class="px-1.5 py-0.5 rounded text-xs bg-purple-500/20 text-purple-400 border border-purple-500/30">Reality</span>
+                          </Show>
                           {renderDelayBadge(p.name)}
                         </div>
                         <div class="mt-2 text-xs text-slate-400 space-y-1 font-mono">
                           <div>服务器: <span class="text-slate-300">{p.server}:{p.port}</span></div>
-                          <Show when={p.servername}>
-                            <div>SNI: <span class="text-slate-300">{p.servername}</span></div>
+                          <Show when={p.sni || p.servername}>
+                            <div>SNI: <span class="text-slate-300">{p.sni || p.servername}</span></div>
+                          </Show>
+                          <Show when={p.alpn && p.alpn.length > 0}>
+                            <div>ALPN: <span class="text-cyan-300">{p.alpn.join(', ')}</span></div>
                           </Show>
                           <Show when={p.uuid}>
                             <div>UUID: <span class="text-slate-400">{p.uuid?.slice(0, 8)}...{p.uuid?.slice(-6)}</span></div>
@@ -929,7 +993,7 @@ export default function App() {
         </Show>
       </main>
 
-      {/* ==================== 模态框: 调整策略组节点 (支持模糊搜索 + 原生组 + 批量测速 + 已选标签栏) ==================== */}
+      {/* ==================== 模态框: 调整策略组节点 ==================== */}
       <Show when={nodeModalOpen()}>
         <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div class="glass-card max-w-3xl w-full p-6 rounded-2xl border border-slate-700 shadow-2xl space-y-4 max-h-[92vh] flex flex-col">
@@ -941,7 +1005,7 @@ export default function App() {
               <button onClick={() => setNodeModalOpen(false)} class="text-slate-400 hover:text-white text-lg">&times;</button>
             </div>
 
-            {/* 顶栏：当前已选节点标签（安全在此删除） */}
+            {/* 顶栏：当前已选节点标签 */}
             <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-2">
               <div class="flex items-center justify-between text-xs">
                 <span class="text-slate-400">当前已选节点/组 (<b>{selectedNodes().length}</b>):</span>
@@ -1157,12 +1221,12 @@ export default function App() {
             </div>
             <div class="space-y-3">
               <div>
-                <label class="block text-xs font-medium text-slate-400 mb-1">粘贴分享链接 (支持 vless://, ss://, trojan://)</label>
+                <label class="block text-xs font-medium text-slate-400 mb-1">粘贴分享链接 (支持 anytls://, vless://, ss://, trojan://)</label>
                 <textarea
                   value={linkToImport()}
                   onInput={(e) => setLinkToImport(e.currentTarget.value)}
                   rows={4}
-                  placeholder="vless://decf85cf-...@154.53.75.226:8881?security=reality..."
+                  placeholder="anytls://password@154.53.75.226:7151?sni=... 或 vless://..."
                   class="w-full p-2.5 text-xs font-mono rounded-lg glass-input"
                 />
               </div>
@@ -1175,7 +1239,7 @@ export default function App() {
         </div>
       </Show>
 
-      {/* ==================== 模态框: 手动添加/编辑节点 ==================== */}
+      {/* ==================== 模态框: 手动添加/编辑节点 (全面支持 AnyTLS / VLESS Reality / SS / Trojan) ==================== */}
       <Show when={proxyModalOpen()}>
         <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div class="glass-card max-w-lg w-full p-6 rounded-2xl border border-slate-700 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
@@ -1186,39 +1250,66 @@ export default function App() {
             <div class="space-y-3 text-xs">
               <div>
                 <label class="block text-slate-400 mb-1">节点名称</label>
-                <input value={proxyForm().name} onInput={(e) => setProxyForm({ ...proxyForm(), name: e.currentTarget.value })} type="text" placeholder="🇺🇸 USA_Los_Reality" class="w-full p-2 rounded-lg glass-input" />
+                <input value={proxyForm().name} onInput={(e) => setProxyForm({ ...proxyForm(), name: e.currentTarget.value })} type="text" placeholder="🇺🇸 USA_Los_AnyTLS" class="w-full p-2 rounded-lg glass-input" />
               </div>
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label class="block text-slate-400 mb-1">协议类型</label>
-                  <select value={proxyForm().type} onChange={(e) => setProxyForm({ ...proxyForm(), type: e.currentTarget.value })} class="w-full p-2 rounded-lg glass-input">
-                    <option value="vless">VLESS</option>
+                  <select value={proxyForm().type} onChange={(e) => setProxyForm({ ...proxyForm(), type: e.currentTarget.value })} class="w-full p-2 rounded-lg glass-input font-medium text-cyan-300">
+                    <option value="anytls">AnyTLS (推荐)</option>
+                    <option value="vless">VLESS (Reality / TLS)</option>
                     <option value="ss">Shadowsocks</option>
                     <option value="trojan">Trojan</option>
                   </select>
                 </div>
                 <div>
-                  <label class="block text-slate-400 mb-1">端口</label>
-                  <input value={proxyForm().port} onInput={(e) => setProxyForm({ ...proxyForm(), port: e.currentTarget.value })} type="number" placeholder="443" class="w-full p-2 rounded-lg glass-input" />
+                  <label class="block text-slate-400 mb-1">端口 (Port)</label>
+                  <input value={proxyForm().port} onInput={(e) => setProxyForm({ ...proxyForm(), port: e.currentTarget.value })} type="number" placeholder="7151" class="w-full p-2 rounded-lg glass-input" />
                 </div>
               </div>
               <div>
                 <label class="block text-slate-400 mb-1">服务器地址 (IP 或 域名)</label>
                 <input value={proxyForm().server} onInput={(e) => setProxyForm({ ...proxyForm(), server: e.currentTarget.value })} type="text" placeholder="154.53.75.226" class="w-full p-2 rounded-lg glass-input" />
               </div>
-              <Show when={proxyForm().type === 'vless'}>
+
+              {/* AnyTLS 字段 */}
+              <Show when={proxyForm().type === 'anytls'}>
                 <div>
-                  <label class="block text-slate-400 mb-1">UUID</label>
-                  <input value={proxyForm().uuid} onInput={(e) => setProxyForm({ ...proxyForm(), uuid: e.currentTarget.value })} type="text" placeholder="decf85cf-..." class="w-full p-2 rounded-lg glass-input" />
+                  <label class="block text-slate-400 mb-1">密码 (Password)</label>
+                  <input value={proxyForm().password} onInput={(e) => setProxyForm({ ...proxyForm(), password: e.currentTarget.value })} type="text" placeholder="812e4961a8254b10" class="w-full p-2 rounded-lg glass-input font-mono" />
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                   <div>
                     <label class="block text-slate-400 mb-1">SNI (Server Name)</label>
-                    <input value={proxyForm().servername} onInput={(e) => setProxyForm({ ...proxyForm(), servername: e.currentTarget.value })} type="text" placeholder="addons.mozilla.org" class="w-full p-2 rounded-lg glass-input" />
+                    <input value={proxyForm().sni} onInput={(e) => setProxyForm({ ...proxyForm(), sni: e.currentTarget.value })} type="text" placeholder="pds-accelerate.pds.aliyuncs.com" class="w-full p-2 rounded-lg glass-input font-mono" />
+                  </div>
+                  <div>
+                    <label class="block text-slate-400 mb-1">ALPN</label>
+                    <input value={proxyForm().alpn} onInput={(e) => setProxyForm({ ...proxyForm(), alpn: e.currentTarget.value })} type="text" placeholder="h2" class="w-full p-2 rounded-lg glass-input font-mono" />
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 pt-1">
+                  <label class="flex items-center gap-2 cursor-pointer text-slate-300">
+                    <input type="checkbox" checked={proxyForm().skipCertVerify} onChange={(e) => setProxyForm({ ...proxyForm(), skipCertVerify: e.currentTarget.checked })} class="rounded text-blue-500" />
+                    <span>跳过证书验证 (skip-cert-verify)</span>
+                  </label>
+                </div>
+              </Show>
+
+              {/* VLESS Reality 字段 */}
+              <Show when={proxyForm().type === 'vless'}>
+                <div>
+                  <label class="block text-slate-400 mb-1">UUID</label>
+                  <input value={proxyForm().uuid} onInput={(e) => setProxyForm({ ...proxyForm(), uuid: e.currentTarget.value })} type="text" placeholder="decf85cf-..." class="w-full p-2 rounded-lg glass-input font-mono" />
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-slate-400 mb-1">SNI (Server Name)</label>
+                    <input value={proxyForm().servername} onInput={(e) => setProxyForm({ ...proxyForm(), servername: e.currentTarget.value })} type="text" placeholder="addons.mozilla.org" class="w-full p-2 rounded-lg glass-input font-mono" />
                   </div>
                   <div>
                     <label class="block text-slate-400 mb-1">Flow</label>
-                    <input value={proxyForm().flow} onInput={(e) => setProxyForm({ ...proxyForm(), flow: e.currentTarget.value })} type="text" placeholder="xtls-rprx-vision" class="w-full p-2 rounded-lg glass-input" />
+                    <input value={proxyForm().flow} onInput={(e) => setProxyForm({ ...proxyForm(), flow: e.currentTarget.value })} type="text" placeholder="xtls-rprx-vision" class="w-full p-2 rounded-lg glass-input font-mono" />
                   </div>
                 </div>
                 <div>
@@ -1226,6 +1317,8 @@ export default function App() {
                   <input value={proxyForm().publicKey} onInput={(e) => setProxyForm({ ...proxyForm(), publicKey: e.currentTarget.value })} type="text" placeholder="XLY4_lSmUI..." class="w-full p-2 rounded-lg glass-input font-mono" />
                 </div>
               </Show>
+
+              {/* SS 字段 */}
               <Show when={proxyForm().type === 'ss'}>
                 <div class="grid grid-cols-2 gap-3">
                   <div>
@@ -1236,6 +1329,18 @@ export default function App() {
                     <label class="block text-slate-400 mb-1">密码</label>
                     <input value={proxyForm().password} onInput={(e) => setProxyForm({ ...proxyForm(), password: e.currentTarget.value })} type="password" class="w-full p-2 rounded-lg glass-input" />
                   </div>
+                </div>
+              </Show>
+
+              {/* Trojan 字段 */}
+              <Show when={proxyForm().type === 'trojan'}>
+                <div>
+                  <label class="block text-slate-400 mb-1">密码 (Password)</label>
+                  <input value={proxyForm().password} onInput={(e) => setProxyForm({ ...proxyForm(), password: e.currentTarget.value })} type="password" class="w-full p-2 rounded-lg glass-input" />
+                </div>
+                <div>
+                  <label class="block text-slate-400 mb-1">SNI (Server Name)</label>
+                  <input value={proxyForm().sni} onInput={(e) => setProxyForm({ ...proxyForm(), sni: e.currentTarget.value })} type="text" placeholder="your-domain.com" class="w-full p-2 rounded-lg glass-input font-mono" />
                 </div>
               </Show>
             </div>
