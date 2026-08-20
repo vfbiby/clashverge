@@ -44,6 +44,7 @@ export default function App() {
   const [rules, setRules] = createSignal<string[]>([]);
   const [subscriptionProxies, setSubscriptionProxies] = createSignal<{ name: string; type?: string; delay?: number }[]>([]);
   const [subscriptionGroups, setSubscriptionGroups] = createSignal<SubscriptionGroup[]>([]);
+  const [activeGroupNow, setActiveGroupNow] = createSignal<Record<string, string>>({});
 
   // Latency Testing Map: { [proxyName]: delayInMs }
   const [delays, setDelays] = createSignal<Record<string, number>>({});
@@ -172,12 +173,13 @@ export default function App() {
       setGroups(data.groups || []);
       setRules(data.rules || []);
 
-      // Load live subscription proxies and groups
+      // Load live subscription proxies, groups, and current active nodes
       try {
         const liveRes = await fetch('/api/live-proxies');
         const liveData = await liveRes.json();
         setSubscriptionProxies(liveData.subscriptionProxies || []);
         setSubscriptionGroups(liveData.subscriptionGroups || []);
+        setActiveGroupNow(liveData.activeGroupNow || {});
 
         const delayMap: Record<string, number> = {};
         (liveData.subscriptionProxies || []).forEach((p: any) => {
@@ -212,6 +214,8 @@ export default function App() {
       if (result.success) {
         setIsDirty(false);
         showToast('🎉 配置已成功保存并实时热生效！');
+        // Reload live state
+        setTimeout(loadData, 500);
       } else {
         throw new Error(result.error || '保存失败');
       }
@@ -222,7 +226,29 @@ export default function App() {
     }
   };
 
-  // Latency Testing - ONLY tests specified nodes
+  // Switch Active Node for a Group directly!
+  const selectActiveNode = async (groupName: string, nodeName: string) => {
+    if (activeGroupNow()[groupName] === nodeName) return;
+
+    try {
+      const res = await fetch(`/proxies/${encodeURIComponent(groupName)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: nodeName }),
+      });
+      if (res.ok || res.status === 204) {
+        setActiveGroupNow(prev => ({ ...prev, [groupName]: nodeName }));
+        showToast(`已将 [${groupName}] 切换为: ${nodeName}`);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || '切换失败');
+      }
+    } catch (err: any) {
+      showToast(`切换节点失败: ${err.message}`, 'error');
+    }
+  };
+
+  // Latency Testing
   const testNodeDelay = async (nodeNames: string[]) => {
     if (!nodeNames || nodeNames.length === 0) return;
     const filterValid = nodeNames.filter(n => n !== 'DIRECT' && n !== 'REJECT');
@@ -403,9 +429,9 @@ export default function App() {
     setEditingProxyIndex(-1);
     setProxyForm({
       name: '',
-      type: 'vless',
+      type: 'anytls',
       server: '',
-      port: 443,
+      port: 8443,
       uuid: '',
       servername: '',
       flow: 'xtls-rprx-vision',
@@ -425,7 +451,7 @@ export default function App() {
     const p = proxies()[index];
     setProxyForm({
       name: p.name,
-      type: p.type || 'vless',
+      type: p.type || 'anytls',
       server: p.server || '',
       port: p.port || 443,
       uuid: p.uuid || '',
@@ -688,13 +714,15 @@ export default function App() {
           </div>
         </Show>
 
-        {/* ==================== TAB 1: 代理策略组 ==================== */}
+        {/* ==================== TAB 1: 代理策略组 (支持直接点选切换活动节点) ==================== */}
         <Show when={activeTab() === 'groups'}>
           <div class="space-y-4">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-800/40 p-4 rounded-xl border border-slate-800">
               <div>
                 <h2 class="text-base font-semibold text-white">代理策略组管理</h2>
-                <p class="text-xs text-slate-400 mt-0.5">点击策略组上的「⚡ 测速」可仅测试组内的节点；点击「调整节点」可安全增删节点与订阅原生组。</p>
+                <p class="text-xs text-slate-400 mt-0.5">
+                  <span class="text-blue-400 font-medium">🎯 直接点击下方节点即可瞬间切换当前使用的节点</span>；点击「调整节点」可勾选增删节点。
+                </p>
               </div>
               <button onClick={openAddGroup} class="text-xs sm:text-sm px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg transition flex items-center gap-1.5">
                 <i class="fa-solid fa-folder-plus"></i>
@@ -704,79 +732,107 @@ export default function App() {
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <For each={groups()}>
-                {(g, groupIdx) => (
-                  <div class="glass-card p-4 rounded-xl relative group">
-                    <div class="flex items-center justify-between mb-3 border-b border-slate-800 pb-3">
-                      <div class="flex items-center gap-2">
-                        <div class="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
-                          <i class="fa-solid fa-layer-group text-sm"></i>
+                {(g, groupIdx) => {
+                  const currentActive = () => activeGroupNow()[g.name];
+
+                  return (
+                    <div class="glass-card p-4 rounded-xl relative group">
+                      <div class="flex items-center justify-between mb-3 border-b border-slate-800 pb-3">
+                        <div class="flex items-center gap-2">
+                          <div class="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
+                            <i class="fa-solid fa-layer-group text-sm"></i>
+                          </div>
+                          <div>
+                            <div class="flex items-center gap-2">
+                              <h3 class="font-medium text-white text-sm sm:text-base">{g.name}</h3>
+                              <Show when={currentActive()}>
+                                <span class="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-medium">
+                                  使用中: <span class="font-bold text-white">{currentActive()}</span>
+                                </span>
+                              </Show>
+                            </div>
+                            <span class="text-xs text-slate-400 font-mono">类型: {g.type}</span>
+                          </div>
                         </div>
-                        <div>
-                          <h3 class="font-medium text-white text-sm sm:text-base">{g.name}</h3>
-                          <span class="text-xs text-slate-400 font-mono">类型: {g.type}</span>
+
+                        <div class="flex items-center space-x-1.5">
+                          <button onClick={() => testGroupDelay(groupIdx())} class="text-xs px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-lg border border-emerald-500/30 transition flex items-center gap-1" title="仅测试该组内包含的节点">
+                            <i class="fa-solid fa-bolt"></i>
+                            <span>测速 ({g.proxies ? g.proxies.length : 0})</span>
+                          </button>
+                          <button onClick={() => openGroupNodeSelector(groupIdx())} class="text-xs px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 rounded-lg border border-slate-700 transition flex items-center gap-1">
+                            <i class="fa-solid fa-list-check"></i>
+                            <span>调整节点</span>
+                          </button>
+                          <button onClick={() => editGroup(groupIdx())} class="p-1.5 text-slate-400 hover:text-blue-400 rounded-lg hover:bg-slate-800 transition" title="重命名/类型">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                          </button>
+                          <button onClick={() => removeGroup(groupIdx())} class="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition" title="删除策略组">
+                            <i class="fa-solid fa-trash-can"></i>
+                          </button>
                         </div>
                       </div>
 
-                      <div class="flex items-center space-x-1.5">
-                        <button onClick={() => testGroupDelay(groupIdx())} class="text-xs px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-lg border border-emerald-500/30 transition flex items-center gap-1" title="仅测试该组内包含的节点">
-                          <i class="fa-solid fa-bolt"></i>
-                          <span>测速 ({g.proxies ? g.proxies.length : 0})</span>
-                        </button>
-                        <button onClick={() => openGroupNodeSelector(groupIdx())} class="text-xs px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 rounded-lg border border-slate-700 transition flex items-center gap-1">
-                          <i class="fa-solid fa-list-check"></i>
-                          <span>调整节点</span>
-                        </button>
-                        <button onClick={() => editGroup(groupIdx())} class="p-1.5 text-slate-400 hover:text-blue-400 rounded-lg hover:bg-slate-800 transition" title="重命名/类型">
-                          <i class="fa-solid fa-pen-to-square"></i>
-                        </button>
-                        <button onClick={() => removeGroup(groupIdx())} class="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition" title="删除策略组">
-                          <i class="fa-solid fa-trash-can"></i>
-                        </button>
+                      <div class="space-y-1.5">
+                        <div class="text-xs text-slate-400 mb-1 flex items-center justify-between">
+                          <span>点击切换使用的节点:</span>
+                          <span class="text-[11px] text-slate-500">点击即刻生效</span>
+                        </div>
+                        <div class="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-1 py-1">
+                          <For each={g.proxies || []}>
+                            {(node) => {
+                              const isCustom = proxies().some(cp => cp.name === node);
+                              const isSubGroup = subscriptionGroups().some(sg => sg.name === node);
+                              const isSpec = node === 'DIRECT' || node === 'REJECT';
+                              const isMissing = isNodeMissing(node);
+                              const isActive = () => currentActive() === node;
+
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => selectActiveNode(g.name, node)}
+                                  class={`text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-2 border transition-all text-left select-none ${
+                                    isActive()
+                                      ? 'bg-blue-600/30 text-white border-blue-400 shadow-md shadow-blue-500/25 ring-1 ring-blue-500 font-medium scale-[1.02]'
+                                      : isMissing
+                                      ? 'bg-rose-500/15 text-rose-300 border-rose-500/30 hover:border-rose-500/60'
+                                      : isCustom
+                                      ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30 hover:border-emerald-400 hover:bg-emerald-500/20'
+                                      : isSubGroup
+                                      ? 'bg-purple-500/10 text-purple-300 border-purple-500/30 hover:border-purple-400 hover:bg-purple-500/20'
+                                      : isSpec
+                                      ? 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:border-amber-400 hover:bg-amber-500/20'
+                                      : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:border-slate-500 hover:bg-slate-800'
+                                  }`}>
+                                  {/* Radio Icon Indicator */}
+                                  <Show when={isActive()} fallback={<i class="fa-regular fa-circle text-slate-500 text-[11px]"></i>}>
+                                    <i class="fa-solid fa-circle-check text-blue-400 text-xs"></i>
+                                  </Show>
+
+                                  <Show when={isMissing}>
+                                    <i class="fa-solid fa-triangle-exclamation text-[10px] text-rose-400" title="当前不可用"></i>
+                                  </Show>
+                                  <Show when={!isMissing && isCustom}>
+                                    <i class="fa-solid fa-crown text-[10px] text-emerald-400" title="自建私有节点"></i>
+                                  </Show>
+                                  <Show when={!isMissing && isSubGroup}>
+                                    <i class="fa-solid fa-diagram-project text-[10px] text-purple-400" title="订阅原生策略组"></i>
+                                  </Show>
+
+                                  <span class="truncate max-w-[180px]">{node}</span>
+                                  {renderDelayBadge(node)}
+                                </button>
+                              );
+                            }}
+                          </For>
+                          <Show when={!g.proxies || g.proxies.length === 0}>
+                            <span class="text-xs text-slate-500 italic">暂未选择任何节点</span>
+                          </Show>
+                        </div>
                       </div>
                     </div>
-
-                    <div class="space-y-1">
-                      <div class="text-xs text-slate-400 mb-1.5 flex items-center justify-between">
-                        <span>包含的节点 / 策略组:</span>
-                      </div>
-                      <div class="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pr-1">
-                        <For each={g.proxies || []}>
-                          {(node) => {
-                            const isCustom = proxies().some(cp => cp.name === node);
-                            const isSubGroup = subscriptionGroups().some(sg => sg.name === node);
-                            const isSpec = node === 'DIRECT' || node === 'REJECT';
-                            const isMissing = isNodeMissing(node);
-
-                            return (
-                              <span class={`text-xs px-2 py-0.5 rounded-md flex items-center gap-1.5 border select-none transition ${
-                                isMissing ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' :
-                                isCustom ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' :
-                                isSubGroup ? 'bg-purple-500/15 text-purple-300 border-purple-500/30' :
-                                isSpec ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' :
-                                'bg-slate-800 text-slate-300 border-slate-700'
-                              }`}>
-                                <Show when={isMissing}>
-                                  <i class="fa-solid fa-triangle-exclamation text-[10px] text-rose-400" title="该节点在当前订阅中不存在"></i>
-                                </Show>
-                                <Show when={!isMissing && isCustom}>
-                                  <i class="fa-solid fa-crown text-[10px] text-emerald-400"></i>
-                                </Show>
-                                <Show when={!isMissing && isSubGroup}>
-                                  <i class="fa-solid fa-diagram-project text-[10px] text-purple-400"></i>
-                                </Show>
-                                <span>{node}</span>
-                                {renderDelayBadge(node)}
-                              </span>
-                            );
-                          }}
-                        </For>
-                        <Show when={!g.proxies || g.proxies.length === 0}>
-                          <span class="text-xs text-slate-500 italic">暂未选择任何节点</span>
-                        </Show>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                  );
+                }}
               </For>
             </div>
           </div>
@@ -1226,7 +1282,7 @@ export default function App() {
                   value={linkToImport()}
                   onInput={(e) => setLinkToImport(e.currentTarget.value)}
                   rows={4}
-                  placeholder="anytls://password@154.53.75.226:7151?sni=... 或 vless://..."
+                  placeholder="anytls://password@154.53.75.226:8443?peer=anytls.node10.local&insecure=1&udp=1#anytls-8443"
                   class="w-full p-2.5 text-xs font-mono rounded-lg glass-input"
                 />
               </div>
@@ -1239,7 +1295,7 @@ export default function App() {
         </div>
       </Show>
 
-      {/* ==================== 模态框: 手动添加/编辑节点 (全面支持 AnyTLS / VLESS Reality / SS / Trojan) ==================== */}
+      {/* ==================== 模态框: 手动添加/编辑节点 ==================== */}
       <Show when={proxyModalOpen()}>
         <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div class="glass-card max-w-lg w-full p-6 rounded-2xl border border-slate-700 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
@@ -1264,7 +1320,7 @@ export default function App() {
                 </div>
                 <div>
                   <label class="block text-slate-400 mb-1">端口 (Port)</label>
-                  <input value={proxyForm().port} onInput={(e) => setProxyForm({ ...proxyForm(), port: e.currentTarget.value })} type="number" placeholder="7151" class="w-full p-2 rounded-lg glass-input" />
+                  <input value={proxyForm().port} onInput={(e) => setProxyForm({ ...proxyForm(), port: e.currentTarget.value })} type="number" placeholder="8443" class="w-full p-2 rounded-lg glass-input" />
                 </div>
               </div>
               <div>
@@ -1275,13 +1331,13 @@ export default function App() {
               {/* AnyTLS 字段 */}
               <Show when={proxyForm().type === 'anytls'}>
                 <div>
-                  <label class="block text-slate-400 mb-1">密码 (Password)</label>
-                  <input value={proxyForm().password} onInput={(e) => setProxyForm({ ...proxyForm(), password: e.currentTarget.value })} type="text" placeholder="812e4961a8254b10" class="w-full p-2 rounded-lg glass-input font-mono" />
+                  <label class="block text-slate-400 mb-1">密码 (Password / UUID)</label>
+                  <input value={proxyForm().password} onInput={(e) => setProxyForm({ ...proxyForm(), password: e.currentTarget.value })} type="text" placeholder="7c62cf6b-1bb1-48f5-b308-761c09ac072e" class="w-full p-2 rounded-lg glass-input font-mono" />
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                   <div>
-                    <label class="block text-slate-400 mb-1">SNI (Server Name)</label>
-                    <input value={proxyForm().sni} onInput={(e) => setProxyForm({ ...proxyForm(), sni: e.currentTarget.value })} type="text" placeholder="pds-accelerate.pds.aliyuncs.com" class="w-full p-2 rounded-lg glass-input font-mono" />
+                    <label class="block text-slate-400 mb-1">SNI / Peer 伪装域名</label>
+                    <input value={proxyForm().sni} onInput={(e) => setProxyForm({ ...proxyForm(), sni: e.currentTarget.value })} type="text" placeholder="anytls.node10.local" class="w-full p-2 rounded-lg glass-input font-mono" />
                   </div>
                   <div>
                     <label class="block text-slate-400 mb-1">ALPN</label>

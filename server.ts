@@ -325,7 +325,15 @@ const server = serve<WsData>({
         const customGroupNames = (customData.groups || []).map((g: any) => g.name);
 
         const allProxyNames = Object.keys(proxiesMap);
+        const activeGroupNow: Record<string, string> = {};
         
+        // 记录所有组当前激活的节点
+        allProxyNames.forEach(name => {
+          if (proxiesMap[name]?.now) {
+            activeGroupNow[name] = proxiesMap[name].now;
+          }
+        });
+
         // 提取订阅里的单节点
         const subscriptionProxies = allProxyNames.filter((name) => {
           const p = proxiesMap[name];
@@ -360,6 +368,7 @@ const server = serve<WsData>({
           subscriptionProxies,
           subscriptionGroups,
           customGroups: customData.groups || [],
+          activeGroupNow,
         }, { headers: { "Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache" } });
       } catch (err) {
         return Response.json({ error: String(err) }, { status: 500 });
@@ -430,6 +439,9 @@ const server = serve<WsData>({
         const targetUrl = `${BACKEND}${url.pathname}${url.search}`;
         const headers = new Headers(req.headers);
         headers.delete("host");
+        if (!headers.has("authorization")) {
+          headers.set("authorization", `Bearer ${SECRET}`);
+        }
         
         const response = await fetch(targetUrl, {
           method: req.method,
