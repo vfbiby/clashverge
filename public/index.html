@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clash Verge 自定义分流工作台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    [v-cloak] { display: none; }
+    body { background-color: #0f172a; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .glass-card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+    .glass-input { background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.12); color: #f8fafc; }
+    .glass-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased">
+  <div id="app" v-cloak class="flex-1 flex flex-col">
+    <!-- 顶部导航栏 -->
+    <header class="border-b border-slate-800 bg-slate-900/80 sticky top-0 z-40 backdrop-blur-md">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <i class="fa-solid fa-bolt text-white text-lg"></i>
+          </div>
+          <div>
+            <h1 class="font-bold text-base sm:text-lg tracking-tight text-white flex items-center gap-2">
+              Clash Verge <span class="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-medium border border-blue-500/30">自定义工作台</span>
+            </h1>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+          <div class="hidden sm:flex items-center text-xs text-slate-400 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 mr-2 animate-pulse"></span>
+            核心: <span class="text-slate-200 font-mono ml-1">127.0.0.1:9097</span>
+          </div>
+
+          <a href="/dashboard" target="_blank" class="text-xs sm:text-sm px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition flex items-center gap-1.5 border border-slate-700">
+            <i class="fa-solid fa-chart-line text-blue-400"></i>
+            <span>监控仪表盘</span>
+          </a>
+
+          <button @click="loadData" :disabled="saving" class="text-xs sm:text-sm px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition flex items-center gap-1.5 border border-slate-700">
+            <i class="fa-solid fa-rotate text-slate-400" :class="{'fa-spin': loading}"></i>
+            <span>刷新</span>
+          </button>
+
+          <button @click="saveConfig" :disabled="saving || !isDirty" class="text-xs sm:text-sm font-medium px-4 py-1.5 rounded-lg transition flex items-center gap-2 shadow-lg"
+            :class="isDirty ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-blue-500/20 ring-2 ring-blue-500/50' : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'">
+            <i class="fa-solid fa-cloud-arrow-up" :class="{'fa-bounce': saving}"></i>
+            <span>{{ saving ? '保存并应用中...' : (isDirty ? '🚀 保存并热生效' : '已是最新') }}</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Tab 选项卡 -->
+    <div class="bg-slate-900/40 border-b border-slate-800">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-6">
+        <button @click="activeTab = 'proxies'" class="py-3.5 text-sm font-medium border-b-2 transition flex items-center gap-2"
+          :class="activeTab === 'proxies' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'">
+          <i class="fa-solid fa-server"></i>
+          <span>1. 自建节点</span>
+          <span class="px-1.5 py-0.5 text-xs rounded-full bg-slate-800 text-slate-400">{{ proxies.length }}</span>
+        </button>
+
+        <button @click="activeTab = 'groups'" class="py-3.5 text-sm font-medium border-b-2 transition flex items-center gap-2"
+          :class="activeTab === 'groups' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'">
+          <i class="fa-solid fa-layer-group"></i>
+          <span>2. 代理策略组</span>
+          <span class="px-1.5 py-0.5 text-xs rounded-full bg-slate-800 text-slate-400">{{ groups.length }}</span>
+        </button>
+
+        <button @click="activeTab = 'rules'" class="py-3.5 text-sm font-medium border-b-2 transition flex items-center gap-2"
+          :class="activeTab === 'rules' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'">
+          <i class="fa-solid fa-route"></i>
+          <span>3. 域名分流规则</span>
+          <span class="px-1.5 py-0.5 text-xs rounded-full bg-slate-800 text-slate-400">{{ rules.length }}</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 主体区域 -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
+      <!-- 提示条 -->
+      <div v-if="toast.show" class="mb-4 p-3 rounded-lg flex items-center justify-between text-sm transition"
+        :class="toast.type === 'success' ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-300' : 'bg-rose-500/10 border border-rose-500/20 text-rose-300'">
+        <div class="flex items-center gap-2">
+          <i :class="toast.type === 'success' ? 'fa-solid fa-circle-check text-emerald-400' : 'fa-solid fa-circle-exclamation text-rose-400'"></i>
+          <span>{{ toast.message }}</span>
+        </div>
+        <button @click="toast.show = false" class="text-xs opacity-70 hover:opacity-100">&times;</button>
+      </div>
+
+      <!-- ==================== TAB 1: 自建节点 ==================== -->
+      <div v-show="activeTab === 'proxies'" class="space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-800/40 p-4 rounded-xl border border-slate-800">
+          <div>
+            <h2 class="text-base font-semibold text-white">自建私有节点管理</h2>
+            <p class="text-xs text-slate-400 mt-0.5">自建节点会自动注入到配置顶层，可在下方的策略组中直接勾选使用。</p>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button @click="openImportLinkModal" class="text-xs sm:text-sm px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg transition flex items-center gap-1.5">
+              <i class="fa-solid fa-link"></i>
+              <span>导入节点链接 (vless/ss/trojan)</span>
+            </button>
+            <button @click="openAddProxyModal" class="text-xs sm:text-sm px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition flex items-center gap-1.5">
+              <i class="fa-solid fa-plus"></i>
+              <span>手动添加</span>
+            </button>
+          </div>
+        </div>
+
+        <div v-if="proxies.length === 0" class="text-center py-16 bg-slate-900/40 rounded-2xl border border-slate-800 border-dashed">
+          <i class="fa-solid fa-server text-4xl text-slate-600 mb-3"></i>
+          <p class="text-slate-400 text-sm">暂无自建节点，点击上方按钮添加或导入</p>
+        </div>
+
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div v-for="(p, index) in proxies" :key="index" class="glass-card p-4 rounded-xl relative group hover:border-slate-700 transition">
+            <div class="flex items-start justify-between">
+              <div class="flex-1 pr-3">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-medium text-slate-100 text-sm sm:text-base">{{ p.name }}</span>
+                  <span class="px-2 py-0.5 rounded text-xs font-mono uppercase bg-blue-500/20 text-blue-400 border border-blue-500/30">{{ p.type }}</span>
+                  <span v-if="p.tls" class="px-1.5 py-0.5 rounded text-xs bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">TLS</span>
+                  <span v-if="p['reality-opts']" class="px-1.5 py-0.5 rounded text-xs bg-purple-500/20 text-purple-400 border border-purple-500/30">Reality</span>
+                </div>
+                <div class="mt-2 text-xs text-slate-400 space-y-1 font-mono">
+                  <div>服务器: <span class="text-slate-300">{{ p.server }}:{{ p.port }}</span></div>
+                  <div v-if="p.servername">SNI: <span class="text-slate-300">{{ p.servername }}</span></div>
+                  <div v-if="p.uuid">UUID: <span class="text-slate-400">{{ p.uuid.slice(0, 8) }}...{{ p.uuid.slice(-6) }}</span></div>
+                </div>
+              </div>
+
+              <div class="flex items-center space-x-1 opacity-80 group-hover:opacity-100 transition">
+                <button @click="editProxy(index)" class="p-1.5 text-slate-400 hover:text-blue-400 rounded-lg hover:bg-slate-800 transition" title="编辑">
+                  <i class="fa-solid fa-pen-to-square"></i>
+                </button>
+                <button @click="removeProxy(index)" class="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition" title="删除">
+                  <i class="fa-solid fa-trash-can"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== TAB 2: 代理策略组 ==================== -->
+      <div v-show="activeTab === 'groups'" class="space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-800/40 p-4 rounded-xl border border-slate-800">
+          <div>
+            <h2 class="text-base font-semibold text-white">代理策略组管理</h2>
+            <p class="text-xs text-slate-400 mt-0.5">创建业务分组（如 Claude, Google, 交易专属），并在组内自由挑选中意的自建或订阅节点。</p>
+          </div>
+          <button @click="openAddGroupModal" class="text-xs sm:text-sm px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg transition flex items-center gap-1.5">
+            <i class="fa-solid fa-folder-plus"></i>
+            <span>新建策略组</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div v-for="(g, index) in groups" :key="index" class="glass-card p-4 rounded-xl relative group">
+            <div class="flex items-center justify-between mb-3 border-b border-slate-800 pb-3">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
+                  <i class="fa-solid fa-layer-group text-sm"></i>
+                </div>
+                <div>
+                  <h3 class="font-medium text-white text-sm sm:text-base">{{ g.name }}</h3>
+                  <span class="text-xs text-slate-400 font-mono">类型: {{ g.type }}</span>
+                </div>
+              </div>
+
+              <div class="flex items-center space-x-1">
+                <button @click="openGroupNodeSelector(index)" class="text-xs px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 rounded-lg border border-slate-700 transition flex items-center gap-1">
+                  <i class="fa-solid fa-list-check"></i>
+                  <span>调整节点 ({{ g.proxies ? g.proxies.length : 0 }})</span>
+                </button>
+                <button @click="editGroup(index)" class="p-1.5 text-slate-400 hover:text-blue-400 rounded-lg hover:bg-slate-800 transition" title="重命名/类型">
+                  <i class="fa-solid fa-pen-to-square"></i>
+                </button>
+                <button @click="removeGroup(index)" class="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition" title="删除策略组">
+                  <i class="fa-solid fa-trash-can"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="space-y-1">
+              <div class="text-xs text-slate-400 mb-1.5">包含的节点 / 选项:</div>
+              <div class="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1">
+                <span v-for="node in (g.proxies || [])" :key="node" class="text-xs px-2 py-0.5 rounded-md flex items-center gap-1 border"
+                  :class="isCustomNode(node) ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : (node === 'DIRECT' || node === 'REJECT' ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : 'bg-slate-800 text-slate-300 border-slate-700')">
+                  <i v-if="isCustomNode(node)" class="fa-solid fa-crown text-[10px] text-emerald-400"></i>
+                  <span>{{ node }}</span>
+                </span>
+                <span v-if="!g.proxies || g.proxies.length === 0" class="text-xs text-slate-500 italic">暂未选择任何节点</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== TAB 3: 域名分流规则 ==================== -->
+      <div v-show="activeTab === 'rules'" class="space-y-4">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-800/40 p-4 rounded-xl border border-slate-800">
+          <div class="flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <div class="relative flex-1">
+              <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+              <input v-model="searchQuery" type="text" placeholder="搜索域名、关键词或 IP..." class="w-full pl-9 pr-3 py-1.5 text-xs sm:text-sm rounded-lg glass-input">
+            </div>
+
+            <select v-model="filterType" class="text-xs sm:text-sm py-1.5 px-2.5 rounded-lg glass-input">
+              <option value="">全部规则类型</option>
+              <option value="DOMAIN-SUFFIX">DOMAIN-SUFFIX (后缀)</option>
+              <option value="DOMAIN">DOMAIN (完整匹配)</option>
+              <option value="DOMAIN-KEYWORD">DOMAIN-KEYWORD (关键词)</option>
+              <option value="IP-CIDR">IP-CIDR (IP段)</option>
+              <option value="GEOSITE">GEOSITE (域名集)</option>
+              <option value="GEOIP">GEOIP (国家代码)</option>
+            </select>
+
+            <select v-model="filterGroup" class="text-xs sm:text-sm py-1.5 px-2.5 rounded-lg glass-input">
+              <option value="">全部目标策略组</option>
+              <option v-for="g in groupOptions" :key="g" :value="g">{{ g }}</option>
+            </select>
+          </div>
+
+          <button @click="openAddRuleModal" class="text-xs sm:text-sm px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg transition flex items-center justify-center gap-1.5 whitespace-nowrap">
+            <i class="fa-solid fa-plus"></i>
+            <span>添加分流规则</span>
+          </button>
+        </div>
+
+        <!-- 规则列表表格 -->
+        <div class="glass-card rounded-xl border border-slate-800 overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs sm:text-sm">
+              <thead class="bg-slate-900/80 text-slate-400 border-b border-slate-800 text-xs font-medium uppercase">
+                <tr>
+                  <th class="py-3 px-3 w-12 text-center">排序</th>
+                  <th class="py-3 px-3 w-36">规则类型</th>
+                  <th class="py-3 px-3">匹配内容 / 域名</th>
+                  <th class="py-3 px-3 w-52">目标策略组</th>
+                  <th class="py-3 px-3 w-24 text-right">操作</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800/60">
+                <tr v-for="(r, index) in filteredRules" :key="r.rawIndex" class="hover:bg-slate-800/30 transition">
+                  <td class="py-2.5 px-3 text-center text-slate-500">
+                    <div class="flex items-center justify-center space-x-1">
+                      <button @click="moveRule(r.rawIndex, -1)" :disabled="r.rawIndex === 0" class="p-1 hover:text-blue-400 disabled:opacity-20 transition" title="上移">
+                        <i class="fa-solid fa-chevron-up text-[10px]"></i>
+                      </button>
+                      <button @click="moveRule(r.rawIndex, 1)" :disabled="r.rawIndex === rules.length - 1" class="p-1 hover:text-blue-400 disabled:opacity-20 transition" title="下移">
+                        <i class="fa-solid fa-chevron-down text-[10px]"></i>
+                      </button>
+                    </div>
+                  </td>
+
+                  <td class="py-2.5 px-3">
+                    <span class="px-2 py-0.5 rounded text-xs font-mono font-medium"
+                      :class="r.type === 'DOMAIN-SUFFIX' ? 'bg-blue-500/15 text-blue-400 border border-blue-500/20' : (r.type === 'DOMAIN' ? 'bg-purple-500/15 text-purple-400 border border-purple-500/20' : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20')">
+                      {{ r.type }}
+                    </span>
+                  </td>
+
+                  <td class="py-2.5 px-3 font-mono text-slate-200 break-all">
+                    {{ r.payload }}
+                  </td>
+
+                  <td class="py-2.5 px-3">
+                    <select v-model="r.target" @change="updateRuleTarget(r.rawIndex, r.target)" class="text-xs py-1 px-2 rounded-lg glass-input w-full font-medium"
+                      :class="r.target === 'DIRECT' ? 'text-amber-300' : (r.target === 'REJECT' ? 'text-rose-300' : 'text-indigo-300')">
+                      <option v-for="opt in groupOptions" :key="opt" :value="opt">{{ opt }}</option>
+                    </select>
+                  </td>
+
+                  <td class="py-2.5 px-3 text-right">
+                    <div class="flex items-center justify-end space-x-1">
+                      <button @click="editRule(r.rawIndex)" class="p-1.5 text-slate-400 hover:text-blue-400 rounded hover:bg-slate-800 transition" title="编辑">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                      </button>
+                      <button @click="removeRule(r.rawIndex)" class="p-1.5 text-slate-400 hover:text-rose-400 rounded hover:bg-slate-800 transition" title="删除">
+                        <i class="fa-solid fa-trash-can"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+
+                <tr v-if="filteredRules.length === 0">
+                  <td colspan="5" class="py-12 text-center text-slate-500">
+                    没有找到匹配的规则
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ==================== 模态框: 导入节点链接 ==================== -->
+    <div v-if="modals.importLink" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div class="glass-card max-w-lg w-full p-6 rounded-2xl border border-slate-700 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h3 class="font-semibold text-white flex items-center gap-2">
+            <i class="fa-solid fa-link text-blue-400"></i>
+            <span>导入节点分享链接</span>
+          </h3>
+          <button @click="modals.importLink = false" class="text-slate-400 hover:text-white">&times;</button>
+        </div>
+
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1">粘贴分享链接 (支持 vless://, ss://, trojan://)</label>
+            <textarea v-model="linkToImport" rows="4" placeholder="vless://decf85cf-...@154.53.75.226:8881?security=reality..." class="w-full p-2.5 text-xs font-mono rounded-lg glass-input"></textarea>
+          </div>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-2 border-t border-slate-800">
+          <button @click="modals.importLink = false" class="px-4 py-1.5 text-xs text-slate-400 hover:text-white rounded-lg">取消</button>
+          <button @click="parseAndAddLink" :disabled="!linkToImport.trim()" class="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition disabled:opacity-50">解析并添加</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 模态框: 手动添加/编辑节点 ==================== -->
+    <div v-if="modals.proxy" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div class="glass-card max-w-lg w-full p-6 rounded-2xl border border-slate-700 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h3 class="font-semibold text-white">{{ editingProxyIndex === -1 ? '添加自建节点' : '编辑节点' }}</h3>
+          <button @click="modals.proxy = false" class="text-slate-400 hover:text-white">&times;</button>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <div>
+            <label class="block text-slate-400 mb-1">节点名称</label>
+            <input v-model="proxyForm.name" type="text" placeholder="🇺🇸 USA_Los_Reality" class="w-full p-2 rounded-lg glass-input">
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-slate-400 mb-1">协议类型</label>
+              <select v-model="proxyForm.type" class="w-full p-2 rounded-lg glass-input">
+                <option value="vless">VLESS</option>
+                <option value="ss">Shadowsocks</option>
+                <option value="trojan">Trojan</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-slate-400 mb-1">端口</label>
+              <input v-model.number="proxyForm.port" type="number" placeholder="443" class="w-full p-2 rounded-lg glass-input">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-slate-400 mb-1">服务器地址 (IP 或 域名)</label>
+            <input v-model="proxyForm.server" type="text" placeholder="154.53.75.226" class="w-full p-2 rounded-lg glass-input">
+          </div>
+
+          <div v-if="proxyForm.type === 'vless'">
+            <label class="block text-slate-400 mb-1">UUID</label>
+            <input v-model="proxyForm.uuid" type="text" placeholder="decf85cf-..." class="w-full p-2 rounded-lg glass-input">
+          </div>
+
+          <div v-if="proxyForm.type === 'vless'" class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-slate-400 mb-1">SNI (Server Name)</label>
+              <input v-model="proxyForm.servername" type="text" placeholder="addons.mozilla.org" class="w-full p-2 rounded-lg glass-input">
+            </div>
+            <div>
+              <label class="block text-slate-400 mb-1">Flow</label>
+              <input v-model="proxyForm.flow" type="text" placeholder="xtls-rprx-vision" class="w-full p-2 rounded-lg glass-input">
+            </div>
+          </div>
+
+          <div v-if="proxyForm.type === 'vless'">
+            <label class="block text-slate-400 mb-1">Reality Public Key (公钥)</label>
+            <input v-model="proxyForm.publicKey" type="text" placeholder="XLY4_lSmUI..." class="w-full p-2 rounded-lg glass-input font-mono">
+          </div>
+
+          <div v-if="proxyForm.type === 'ss'" class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-slate-400 mb-1">加密方式 (Cipher)</label>
+              <input v-model="proxyForm.cipher" type="text" placeholder="aes-128-gcm" class="w-full p-2 rounded-lg glass-input">
+            </div>
+            <div>
+              <label class="block text-slate-400 mb-1">密码</label>
+              <input v-model="proxyForm.password" type="password" class="w-full p-2 rounded-lg glass-input">
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-800">
+          <button @click="modals.proxy = false" class="px-4 py-1.5 text-xs text-slate-400 hover:text-white rounded-lg">取消</button>
+          <button @click="saveProxyForm" class="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition">确定</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 模态框: 调整策略组节点 ==================== -->
+    <div v-if="modals.nodeSelector" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div class="glass-card max-w-2xl w-full p-6 rounded-2xl border border-slate-700 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div>
+            <h3 class="font-semibold text-white">调整策略组节点: <span class="text-indigo-400">{{ currentSelectingGroupName }}</span></h3>
+            <p class="text-xs text-slate-400 mt-0.5">勾选希望加入该组的自建节点、订阅节点或特殊选项</p>
+          </div>
+          <button @click="modals.nodeSelector = false" class="text-slate-400 hover:text-white">&times;</button>
+        </div>
+
+        <div class="relative">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+          <input v-model="nodeSearchQuery" type="text" placeholder="快速筛选节点名称..." class="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg glass-input">
+        </div>
+
+        <div class="flex-1 overflow-y-auto space-y-4 pr-1 text-xs">
+          <!-- 特殊选项 -->
+          <div>
+            <div class="text-slate-400 font-semibold mb-2 flex items-center gap-1.5">
+              <i class="fa-solid fa-star text-amber-400"></i>
+              <span>特殊 / 系统选项</span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <label v-for="spec in ['DIRECT', 'REJECT', 'Proxies']" :key="spec"
+                class="flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition select-none"
+                :class="selectedGroupNodes.includes(spec) ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 font-medium' : 'bg-slate-800/60 border-slate-700/60 text-slate-300 hover:bg-slate-800'">
+                <input type="checkbox" :value="spec" v-model="selectedGroupNodes" class="rounded text-amber-500">
+                <span class="truncate">{{ spec }}</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 自建节点 -->
+          <div v-if="proxies.length > 0">
+            <div class="text-slate-400 font-semibold mb-2 flex items-center gap-1.5">
+              <i class="fa-solid fa-crown text-emerald-400"></i>
+              <span>我的自建节点</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label v-for="cp in proxies" :key="cp.name"
+                class="flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition select-none"
+                :class="selectedGroupNodes.includes(cp.name) ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 font-medium' : 'bg-slate-800/60 border-slate-700/60 text-slate-300 hover:bg-slate-800'">
+                <input type="checkbox" :value="cp.name" v-model="selectedGroupNodes" class="rounded text-emerald-500">
+                <span class="truncate">{{ cp.name }}</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 订阅节点 -->
+          <div>
+            <div class="text-slate-400 font-semibold mb-2 flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <i class="fa-solid fa-globe text-blue-400"></i>
+                <span>订阅中的节点 ({{ filteredSubscriptionNodes.length }})</span>
+              </div>
+              <div class="space-x-2 text-[11px]">
+                <button @click="toggleSelectAllSubNodes" class="text-blue-400 hover:underline">全选/反选筛选节点</button>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto">
+              <label v-for="sp in filteredSubscriptionNodes" :key="sp.name"
+                class="flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition select-none"
+                :class="selectedGroupNodes.includes(sp.name) ? 'bg-blue-500/20 border-blue-500/40 text-blue-300 font-medium' : 'bg-slate-800/60 border-slate-700/60 text-slate-300 hover:bg-slate-800'">
+                <input type="checkbox" :value="sp.name" v-model="selectedGroupNodes" class="rounded text-blue-500">
+                <span class="truncate">{{ sp.name }}</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-between items-center pt-3 border-t border-slate-800">
+          <span class="text-xs text-slate-400">已选择 <b class="text-white">{{ selectedGroupNodes.length }}</b> 个节点</span>
+          <div class="flex space-x-2">
+            <button @click="modals.nodeSelector = false" class="px-4 py-1.5 text-xs text-slate-400 hover:text-white rounded-lg">取消</button>
+            <button @click="saveGroupNodes" class="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition">确认保存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 模态框: 添加/编辑策略组 ==================== -->
+    <div v-if="modals.groupEdit" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div class="glass-card max-w-md w-full p-6 rounded-2xl border border-slate-700 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h3 class="font-semibold text-white">{{ editingGroupIndex === -1 ? '新建代理策略组' : '编辑策略组' }}</h3>
+          <button @click="modals.groupEdit = false" class="text-slate-400 hover:text-white">&times;</button>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <div>
+            <label class="block text-slate-400 mb-1">策略组名称</label>
+            <input v-model="groupForm.name" type="text" placeholder="如 Claude, MyGoogle, 交易专属" class="w-full p-2 rounded-lg glass-input">
+          </div>
+          <div>
+            <label class="block text-slate-400 mb-1">组类型</label>
+            <select v-model="groupForm.type" class="w-full p-2 rounded-lg glass-input">
+              <option value="select">select (手动选择节点)</option>
+              <option value="url-test">url-test (自动选择最低延迟)</option>
+              <option value="fallback">fallback (故障自动转移)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-800">
+          <button @click="modals.groupEdit = false" class="px-4 py-1.5 text-xs text-slate-400 hover:text-white rounded-lg">取消</button>
+          <button @click="saveGroupForm" class="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition">确定</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 模态框: 添加/编辑规则 ==================== -->
+    <div v-if="modals.rule" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div class="glass-card max-w-md w-full p-6 rounded-2xl border border-slate-700 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h3 class="font-semibold text-white">{{ editingRuleIndex === -1 ? '添加分流规则' : '编辑分流规则' }}</h3>
+          <button @click="modals.rule = false" class="text-slate-400 hover:text-white">&times;</button>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <div>
+            <label class="block text-slate-400 mb-1">规则类型</label>
+            <select v-model="ruleForm.type" class="w-full p-2 rounded-lg glass-input">
+              <option value="DOMAIN-SUFFIX">DOMAIN-SUFFIX (域名后缀匹配, 如 claude.ai)</option>
+              <option value="DOMAIN">DOMAIN (域名完全匹配, 如 ai.google.dev)</option>
+              <option value="DOMAIN-KEYWORD">DOMAIN-KEYWORD (关键词匹配, 如 google)</option>
+              <option value="IP-CIDR">IP-CIDR (IP段, 如 1.1.1.1/32)</option>
+              <option value="GEOSITE">GEOSITE (预定义域名集, 如 geosite:cn)</option>
+              <option value="GEOIP">GEOIP (国家代码, 如 CN)</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-slate-400 mb-1">匹配目标 (域名/IP/关键词)</label>
+            <input v-model="ruleForm.payload" type="text" placeholder="例如: claude.ai 或 anthropic.com" class="w-full p-2 rounded-lg glass-input font-mono">
+          </div>
+
+          <div>
+            <label class="block text-slate-400 mb-1">目标策略组 / 动作</label>
+            <select v-model="ruleForm.target" class="w-full p-2 rounded-lg glass-input font-medium text-indigo-300">
+              <option v-for="opt in groupOptions" :key="opt" :value="opt">{{ opt }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex justify-end space-x-2 pt-3 border-t border-slate-800">
+          <button @click="modals.rule = false" class="px-4 py-1.5 text-xs text-slate-400 hover:text-white rounded-lg">取消</button>
+          <button @click="saveRuleForm" class="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition">确定</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, computed, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        const activeTab = ref('rules');
+        const loading = ref(false);
+        const saving = ref(false);
+        const isDirty = ref(false);
+
+        const base = ref({});
+        const proxies = ref([]);
+        const groups = ref([]);
+        const rules = ref([]);
+        const subscriptionNodes = ref([]);
+
+        const searchQuery = ref('');
+        const filterType = ref('');
+        const filterGroup = ref('');
+
+        const nodeSearchQuery = ref('');
+        const currentSelectingGroupIndex = ref(-1);
+        const selectedGroupNodes = ref([]);
+
+        const linkToImport = ref('');
+        const editingProxyIndex = ref(-1);
+        const proxyForm = ref({ name: '', type: 'vless', server: '', port: 443, uuid: '', servername: '', flow: '', publicKey: '', cipher: '', password: '' });
+
+        const editingGroupIndex = ref(-1);
+        const groupForm = ref({ name: '', type: 'select' });
+
+        const editingRuleIndex = ref(-1);
+        const ruleForm = ref({ type: 'DOMAIN-SUFFIX', payload: '', target: 'Custom' });
+
+        const modals = ref({
+          importLink: false,
+          proxy: false,
+          nodeSelector: false,
+          groupEdit: false,
+          rule: false,
+        });
+
+        const toast = ref({ show: false, message: '', type: 'success' });
+        const showToast = (message, type = 'success') => {
+          toast.value = { show: true, message, type };
+          setTimeout(() => { toast.value.show = false; }, 4000);
+        };
+
+        const groupOptions = computed(() => {
+          const customGroupNames = groups.value.map(g => g.name);
+          return [...customGroupNames, 'DIRECT', 'REJECT', 'Proxies'];
+        });
+
+        const currentSelectingGroupName = computed(() => {
+          if (currentSelectingGroupIndex.value >= 0 && groups.value[currentSelectingGroupIndex.value]) {
+            return groups.value[currentSelectingGroupIndex.value].name;
+          }
+          return '';
+        });
+
+        const filteredSubscriptionNodes = computed(() => {
+          if (!nodeSearchQuery.value.trim()) return subscriptionNodes.value;
+          const q = nodeSearchQuery.value.toLowerCase();
+          return subscriptionNodes.value.filter(n => n.name.toLowerCase().includes(q));
+        });
+
+        const isCustomNode = (name) => {
+          return proxies.value.some(p => p.name === name);
+        };
+
+        // 解析规则列表为结构化数据
+        const parsedRules = computed(() => {
+          return rules.value.map((r, rawIndex) => {
+            const parts = r.split(',').map(s => s.trim());
+            return {
+              rawIndex,
+              raw: r,
+              type: parts[0] || 'DOMAIN-SUFFIX',
+              payload: parts[1] || '',
+              target: parts[2] || 'Custom',
+            };
+          });
+        });
+
+        const filteredRules = computed(() => {
+          return parsedRules.value.filter(r => {
+            const matchSearch = !searchQuery.value || r.payload.toLowerCase().includes(searchQuery.value.toLowerCase()) || r.type.toLowerCase().includes(searchQuery.value.toLowerCase()) || r.target.toLowerCase().includes(searchQuery.value.toLowerCase());
+            const matchType = !filterType.value || r.type === filterType.value;
+            const matchGroup = !filterGroup.value || r.target === filterGroup.value;
+            return matchSearch && matchType && matchGroup;
+          });
+        });
+
+        const loadData = async () => {
+          loading.value = true;
+          try {
+            const res = await fetch('/api/custom-config');
+            const data = await res.json();
+            base.value = data.base || {};
+            proxies.value = data.proxies || [];
+            groups.value = data.groups || [];
+            rules.value = data.rules || [];
+
+            // 加载活跃订阅节点
+            try {
+              const liveRes = await fetch('/api/live-proxies');
+              const liveData = await liveRes.json();
+              subscriptionNodes.value = liveData.subscriptionProxies || [];
+            } catch (_) {}
+
+            isDirty.value = false;
+          } catch (err) {
+            showToast('加载数据失败: ' + err.message, 'error');
+          } finally {
+            loading.value = false;
+          }
+        };
+
+        const saveConfig = async () => {
+          saving.value = true;
+          try {
+            const payload = {
+              base: base.value,
+              proxies: proxies.value,
+              groups: groups.value,
+              rules: rules.value,
+            };
+            const res = await fetch('/api/custom-config', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            const result = await res.json();
+            if (result.success) {
+              isDirty.value = false;
+              showToast('🎉 配置已成功保存并实时热生效！');
+            } else {
+              throw new Error(result.error || '保存失败');
+            }
+          } catch (err) {
+            showToast('保存失败: ' + err.message, 'error');
+          } finally {
+            saving.value = false;
+          }
+        };
+
+        // ====== 节点操作 ======
+        const openImportLinkModal = () => {
+          linkToImport.value = '';
+          modals.value.importLink = true;
+        };
+
+        const parseAndAddLink = async () => {
+          try {
+            const res = await fetch('/api/parse-link', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ link: linkToImport.value }),
+            });
+            const data = await res.json();
+            if (data.success && data.proxy) {
+              proxies.value.push(data.proxy);
+              isDirty.value = true;
+              modals.value.importLink = false;
+              showToast(`已成功导入节点: ${data.proxy.name}`);
+            } else {
+              throw new Error(data.error || '解析失败');
+            }
+          } catch (err) {
+            showToast(err.message, 'error');
+          }
+        };
+
+        const openAddProxyModal = () => {
+          editingProxyIndex.value = -1;
+          proxyForm.value = { name: '', type: 'vless', server: '', port: 443, uuid: '', servername: '', flow: 'xtls-rprx-vision', publicKey: '', cipher: 'aes-128-gcm', password: '' };
+          modals.value.proxy = true;
+        };
+
+        const editProxy = (index) => {
+          editingProxyIndex.value = index;
+          const p = proxies.value[index];
+          proxyForm.value = {
+            name: p.name,
+            type: p.type || 'vless',
+            server: p.server || '',
+            port: p.port || 443,
+            uuid: p.uuid || '',
+            servername: p.servername || '',
+            flow: p.flow || '',
+            publicKey: p['reality-opts'] ? p['reality-opts']['public-key'] : '',
+            cipher: p.cipher || '',
+            password: p.password || '',
+          };
+          modals.value.proxy = true;
+        };
+
+        const saveProxyForm = () => {
+          if (!proxyForm.value.name || !proxyForm.value.server) {
+            showToast('请填写节点名称和服务器地址', 'error');
+            return;
+          }
+          const p = {
+            name: proxyForm.value.name,
+            type: proxyForm.value.type,
+            server: proxyForm.value.server,
+            port: proxyForm.value.port,
+          };
+          if (proxyForm.value.type === 'vless') {
+            p.uuid = proxyForm.value.uuid;
+            p.encryption = '';
+            p.tls = true;
+            p.servername = proxyForm.value.servername;
+            p.flow = proxyForm.value.flow || undefined;
+            p['client-fingerprint'] = 'chrome';
+            p.network = 'tcp';
+            if (proxyForm.value.publicKey) {
+              p['reality-opts'] = { 'public-key': proxyForm.value.publicKey };
+            }
+          } else if (proxyForm.value.type === 'ss') {
+            p.cipher = proxyForm.value.cipher;
+            p.password = proxyForm.value.password;
+          }
+          if (editingProxyIndex.value === -1) {
+            proxies.value.push(p);
+          } else {
+            proxies.value[editingProxyIndex.value] = p;
+          }
+          isDirty.value = true;
+          modals.value.proxy = false;
+        };
+
+        const removeProxy = (index) => {
+          if (confirm(`确定删除自建节点 "${proxies.value[index].name}" 吗？`)) {
+            proxies.value.splice(index, 1);
+            isDirty.value = true;
+          }
+        };
+
+        // ====== 策略组操作 ======
+        const openAddGroupModal = () => {
+          editingGroupIndex.value = -1;
+          groupForm.value = { name: '', type: 'select' };
+          modals.value.groupEdit = true;
+        };
+
+        const editGroup = (index) => {
+          editingGroupIndex.value = index;
+          groupForm.value = { name: groups.value[index].name, type: groups.value[index].type || 'select' };
+          modals.value.groupEdit = true;
+        };
+
+        const saveGroupForm = () => {
+          if (!groupForm.value.name.trim()) return;
+          if (editingGroupIndex.value === -1) {
+            groups.value.push({
+              name: groupForm.value.name.trim(),
+              type: groupForm.value.type,
+              proxies: ['DIRECT', 'Proxies'],
+            });
+          } else {
+            groups.value[editingGroupIndex.value].name = groupForm.value.name.trim();
+            groups.value[editingGroupIndex.value].type = groupForm.value.type;
+          }
+          isDirty.value = true;
+          modals.value.groupEdit = false;
+        };
+
+        const removeGroup = (index) => {
+          if (confirm(`确定删除策略组 "${groups.value[index].name}" 吗？`)) {
+            groups.value.splice(index, 1);
+            isDirty.value = true;
+          }
+        };
+
+        const openGroupNodeSelector = (index) => {
+          currentSelectingGroupIndex.value = index;
+          selectedGroupNodes.value = [...(groups.value[index].proxies || [])];
+          nodeSearchQuery.value = '';
+          modals.value.nodeSelector = true;
+        };
+
+        const saveGroupNodes = () => {
+          if (currentSelectingGroupIndex.value >= 0) {
+            groups.value[currentSelectingGroupIndex.value].proxies = [...selectedGroupNodes.value];
+            isDirty.value = true;
+          }
+          modals.value.nodeSelector = false;
+        };
+
+        const toggleSelectAllSubNodes = () => {
+          const names = filteredSubscriptionNodes.value.map(n => n.name);
+          const allSelected = names.every(n => selectedGroupNodes.value.includes(n));
+          if (allSelected) {
+            selectedGroupNodes.value = selectedGroupNodes.value.filter(n => !names.includes(n));
+          } else {
+            names.forEach(n => {
+              if (!selectedGroupNodes.value.includes(n)) selectedGroupNodes.value.push(n);
+            });
+          }
+        };
+
+        // ====== 规则操作 ======
+        const openAddRuleModal = () => {
+          editingRuleIndex.value = -1;
+          ruleForm.value = { type: 'DOMAIN-SUFFIX', payload: '', target: groups.value[0]?.name || 'Custom' };
+          modals.value.rule = true;
+        };
+
+        const editRule = (rawIndex) => {
+          editingRuleIndex.value = rawIndex;
+          const parsed = parsedRules.value[rawIndex];
+          ruleForm.value = { type: parsed.type, payload: parsed.payload, target: parsed.target };
+          modals.value.rule = true;
+        };
+
+        const saveRuleForm = () => {
+          if (!ruleForm.value.payload.trim()) {
+            showToast('请填写匹配目标 (域名/IP)', 'error');
+            return;
+          }
+          const ruleStr = `${ruleForm.value.type},${ruleForm.value.payload.trim()},${ruleForm.value.target}`;
+          if (editingRuleIndex.value === -1) {
+            rules.value.unshift(ruleStr);
+          } else {
+            rules.value[editingRuleIndex.value] = ruleStr;
+          }
+          isDirty.value = true;
+          modals.value.rule = false;
+        };
+
+        const updateRuleTarget = (rawIndex, newTarget) => {
+          const parsed = parsedRules.value[rawIndex];
+          rules.value[rawIndex] = `${parsed.type},${parsed.payload},${newTarget}`;
+          isDirty.value = true;
+        };
+
+        const removeRule = (rawIndex) => {
+          rules.value.splice(rawIndex, 1);
+          isDirty.value = true;
+        };
+
+        const moveRule = (rawIndex, direction) => {
+          const targetIndex = rawIndex + direction;
+          if (targetIndex < 0 || targetIndex >= rules.value.length) return;
+          const temp = rules.value[rawIndex];
+          rules.value[rawIndex] = rules.value[targetIndex];
+          rules.value[targetIndex] = temp;
+          isDirty.value = true;
+        };
+
+        onMounted(() => {
+          loadData();
+        });
+
+        return {
+          activeTab, loading, saving, isDirty, toast,
+          base, proxies, groups, rules,
+          searchQuery, filterType, filterGroup, groupOptions,
+          nodeSearchQuery, currentSelectingGroupName, filteredSubscriptionNodes, selectedGroupNodes,
+          linkToImport, proxyForm, groupForm, ruleForm, modals,
+          parsedRules, filteredRules,
+          loadData, saveConfig, isCustomNode,
+          openImportLinkModal, parseAndAddLink, openAddProxyModal, editProxy, saveProxyForm, removeProxy,
+          openAddGroupModal, editGroup, saveGroupForm, removeGroup, openGroupNodeSelector, saveGroupNodes, toggleSelectAllSubNodes,
+          openAddRuleModal, editRule, saveRuleForm, updateRuleTarget, removeRule, moveRule,
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
