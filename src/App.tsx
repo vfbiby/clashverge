@@ -28,7 +28,7 @@ interface SubscriptionGroup {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = createSignal<'proxies' | 'groups' | 'rules'>('rules');
+  const [activeTab, setActiveTab] = createSignal<'proxies' | 'groups' | 'rules'>('groups');
   const [loading, setLoading] = createSignal(false);
   const [saving, setSaving] = createSignal(false);
   const [isDirty, setIsDirty] = createSignal(false);
@@ -94,6 +94,27 @@ export default function App() {
     return '';
   });
 
+  // All known valid node names in current runtime
+  const allKnownNodeNames = createMemo(() => {
+    const set = new Set<string>();
+    set.add('DIRECT');
+    set.add('REJECT');
+    proxies().forEach(p => set.add(p.name));
+    subscriptionGroups().forEach(g => set.add(g.name));
+    subscriptionProxies().forEach(p => set.add(p.name));
+    return set;
+  });
+
+  // Check if a node is orphan / missing in current subscription
+  const isNodeMissing = (name: string) => {
+    return !allKnownNodeNames().has(name);
+  };
+
+  // Orphaned nodes in currently selected modal
+  const missingSelectedNodes = createMemo(() => {
+    return selectedNodes().filter(name => isNodeMissing(name));
+  });
+
   // Rules Parsing
   const parsedRules = createMemo(() => {
     return rules().map((r, rawIndex) => {
@@ -139,7 +160,6 @@ export default function App() {
         setSubscriptionProxies(liveData.subscriptionProxies || []);
         setSubscriptionGroups(liveData.subscriptionGroups || []);
 
-        // Populate initial delays if present
         const delayMap: Record<string, number> = {};
         (liveData.subscriptionProxies || []).forEach((p: any) => {
           if (p.delay) delayMap[p.name] = p.delay;
@@ -189,7 +209,6 @@ export default function App() {
     const filterValid = nodeNames.filter(n => n !== 'DIRECT' && n !== 'REJECT');
     if (filterValid.length === 0) return;
 
-    // Mark as testing
     setTestingDelay(prev => {
       const next = { ...prev };
       filterValid.forEach(n => next[n] = true);
@@ -224,7 +243,6 @@ export default function App() {
     }
   };
 
-  // Helper for latency badge
   const renderDelayBadge = (name: string) => {
     const isTesting = testingDelay()[name];
     const delay = delays()[name];
@@ -294,6 +312,29 @@ export default function App() {
     } else {
       setSelectedNodes([...current, name]);
     }
+  };
+
+  const removeNodeFromCurrentGroup = (nodeName: string) => {
+    setSelectedNodes(selectedNodes().filter(n => n !== nodeName));
+  };
+
+  // Direct remove node from main page card
+  const removeNodeFromGroupDirect = (groupIndex: number, nodeName: string) => {
+    const next = [...groups()];
+    next[groupIndex] = {
+      ...next[groupIndex],
+      proxies: next[groupIndex].proxies.filter(n => n !== nodeName),
+    };
+    setGroups(next);
+    setIsDirty(true);
+    showToast(`已从组 "${next[groupIndex].name}" 中移除节点: ${nodeName}`);
+  };
+
+  // Clean all missing/orphaned nodes from current modal selection
+  const clearMissingNodes = () => {
+    const missing = new Set(missingSelectedNodes());
+    setSelectedNodes(selectedNodes().filter(n => !missing.has(n)));
+    showToast(`已一键清除所有当前不可用的失效节点/组`);
   };
 
   const saveGroupNodes = () => {
@@ -439,7 +480,7 @@ export default function App() {
     if (!f.name.trim()) return;
     const idx = editingGroupIndex();
     if (idx === -1) {
-      setGroups([...groups(), { name: f.name.trim(), type: f.type, proxies: ['DIRECT', 'Proxies'] }]);
+      setGroups([...groups(), { name: f.name.trim(), type: f.type, proxies: ['DIRECT'] }]);
     } else {
       const next = [...groups()];
       next[idx] = { ...next[idx], name: f.name.trim(), type: f.type };
@@ -563,21 +604,12 @@ export default function App() {
       {/* Tab 切换 */}
       <div class="bg-slate-900/40 border-b border-slate-800">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-6">
-          <button onClick={() => setActiveTab('proxies')}
-            class={`py-3.5 text-sm font-medium border-b-2 transition flex items-center gap-2 ${
-              activeTab() === 'proxies' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}>
-            <i class="fa-solid fa-server"></i>
-            <span>1. 自建节点</span>
-            <span class="px-1.5 py-0.5 text-xs rounded-full bg-slate-800 text-slate-400">{proxies().length}</span>
-          </button>
-
           <button onClick={() => setActiveTab('groups')}
             class={`py-3.5 text-sm font-medium border-b-2 transition flex items-center gap-2 ${
               activeTab() === 'groups' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}>
             <i class="fa-solid fa-layer-group"></i>
-            <span>2. 代理策略组</span>
+            <span>1. 代理策略组</span>
             <span class="px-1.5 py-0.5 text-xs rounded-full bg-slate-800 text-slate-400">{groups().length}</span>
           </button>
 
@@ -586,8 +618,17 @@ export default function App() {
               activeTab() === 'rules' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}>
             <i class="fa-solid fa-route"></i>
-            <span>3. 域名分流规则</span>
+            <span>2. 域名分流规则</span>
             <span class="px-1.5 py-0.5 text-xs rounded-full bg-slate-800 text-slate-400">{rules().length}</span>
+          </button>
+
+          <button onClick={() => setActiveTab('proxies')}
+            class={`py-3.5 text-sm font-medium border-b-2 transition flex items-center gap-2 ${
+              activeTab() === 'proxies' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}>
+            <i class="fa-solid fa-server"></i>
+            <span>3. 自建节点</span>
+            <span class="px-1.5 py-0.5 text-xs rounded-full bg-slate-800 text-slate-400">{proxies().length}</span>
           </button>
         </div>
       </div>
@@ -607,85 +648,13 @@ export default function App() {
           </div>
         </Show>
 
-        {/* ==================== TAB 1: 自建节点 ==================== */}
-        <Show when={activeTab() === 'proxies'}>
-          <div class="space-y-4">
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-800/40 p-4 rounded-xl border border-slate-800">
-              <div>
-                <h2 class="text-base font-semibold text-white">自建私有节点管理</h2>
-                <p class="text-xs text-slate-400 mt-0.5">自建节点会自动注入到配置顶层，可在下方的策略组中直接勾选使用。</p>
-              </div>
-              <div class="flex items-center space-x-2">
-                <button onClick={() => testNodeDelay(proxies().map(p => p.name))} class="text-xs sm:text-sm px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg transition flex items-center gap-1.5">
-                  <i class="fa-solid fa-bolt"></i>
-                  <span>一键全节点测速</span>
-                </button>
-                <button onClick={openImportModal} class="text-xs sm:text-sm px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg transition flex items-center gap-1.5">
-                  <i class="fa-solid fa-link"></i>
-                  <span>导入节点链接</span>
-                </button>
-                <button onClick={openAddProxy} class="text-xs sm:text-sm px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition flex items-center gap-1.5">
-                  <i class="fa-solid fa-plus"></i>
-                  <span>手动添加</span>
-                </button>
-              </div>
-            </div>
-
-            <Show when={proxies().length === 0}>
-              <div class="text-center py-16 bg-slate-900/40 rounded-2xl border border-slate-800 border-dashed">
-                <i class="fa-solid fa-server text-4xl text-slate-600 mb-3"></i>
-                <p class="text-slate-400 text-sm">暂无自建节点，点击上方按钮添加或导入</p>
-              </div>
-            </Show>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <For each={proxies()}>
-                {(p, index) => (
-                  <div class="glass-card p-4 rounded-xl relative group hover:border-slate-700 transition">
-                    <div class="flex items-start justify-between">
-                      <div class="flex-1 pr-3">
-                        <div class="flex items-center gap-2 flex-wrap">
-                          <span class="font-medium text-slate-100 text-sm sm:text-base">{p.name}</span>
-                          <span class="px-2 py-0.5 rounded text-xs font-mono uppercase bg-blue-500/20 text-blue-400 border border-blue-500/30">{p.type}</span>
-                          {renderDelayBadge(p.name)}
-                        </div>
-                        <div class="mt-2 text-xs text-slate-400 space-y-1 font-mono">
-                          <div>服务器: <span class="text-slate-300">{p.server}:{p.port}</span></div>
-                          <Show when={p.servername}>
-                            <div>SNI: <span class="text-slate-300">{p.servername}</span></div>
-                          </Show>
-                          <Show when={p.uuid}>
-                            <div>UUID: <span class="text-slate-400">{p.uuid?.slice(0, 8)}...{p.uuid?.slice(-6)}</span></div>
-                          </Show>
-                        </div>
-                      </div>
-
-                      <div class="flex items-center space-x-1 opacity-80 group-hover:opacity-100 transition">
-                        <button onClick={() => testNodeDelay([p.name])} class="p-1.5 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-slate-800 transition" title="单节点测速">
-                          <i class="fa-solid fa-bolt text-xs"></i>
-                        </button>
-                        <button onClick={() => editProxy(index())} class="p-1.5 text-slate-400 hover:text-blue-400 rounded-lg hover:bg-slate-800 transition" title="编辑">
-                          <i class="fa-solid fa-pen-to-square text-xs"></i>
-                        </button>
-                        <button onClick={() => removeProxy(index())} class="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition" title="删除">
-                          <i class="fa-solid fa-trash-can text-xs"></i>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </For>
-            </div>
-          </div>
-        </Show>
-
-        {/* ==================== TAB 2: 代理策略组 ==================== */}
+        {/* ==================== TAB 1: 代理策略组 ==================== */}
         <Show when={activeTab() === 'groups'}>
           <div class="space-y-4">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-800/40 p-4 rounded-xl border border-slate-800">
               <div>
                 <h2 class="text-base font-semibold text-white">代理策略组管理</h2>
-                <p class="text-xs text-slate-400 mt-0.5">创建业务分组（如 Claude, Google, 交易专属），自由勾选自建节点、订阅原生组或单节点。</p>
+                <p class="text-xs text-slate-400 mt-0.5">点击标签上的 <span class="text-rose-400 font-bold">✖</span> 可直接移除节点；点击「调整节点」可自由勾选自建节点或订阅里的原生策略组。</p>
               </div>
               <button onClick={openAddGroup} class="text-xs sm:text-sm px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg transition flex items-center gap-1.5">
                 <i class="fa-solid fa-folder-plus"></i>
@@ -695,7 +664,7 @@ export default function App() {
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <For each={groups()}>
-                {(g, index) => (
+                {(g, groupIdx) => (
                   <div class="glass-card p-4 rounded-xl relative group">
                     <div class="flex items-center justify-between mb-3 border-b border-slate-800 pb-3">
                       <div class="flex items-center gap-2">
@@ -709,18 +678,18 @@ export default function App() {
                       </div>
 
                       <div class="flex items-center space-x-1.5">
-                        <button onClick={() => testGroupDelay(index())} class="text-xs px-2 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-lg border border-emerald-500/30 transition flex items-center gap-1" title="测速组内节点">
+                        <button onClick={() => testGroupDelay(groupIdx())} class="text-xs px-2 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-lg border border-emerald-500/30 transition flex items-center gap-1" title="测速组内节点">
                           <i class="fa-solid fa-bolt"></i>
                           <span>测速</span>
                         </button>
-                        <button onClick={() => openGroupNodeSelector(index())} class="text-xs px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 rounded-lg border border-slate-700 transition flex items-center gap-1">
+                        <button onClick={() => openGroupNodeSelector(groupIdx())} class="text-xs px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 rounded-lg border border-slate-700 transition flex items-center gap-1">
                           <i class="fa-solid fa-list-check"></i>
                           <span>调整节点 ({g.proxies ? g.proxies.length : 0})</span>
                         </button>
-                        <button onClick={() => editGroup(index())} class="p-1.5 text-slate-400 hover:text-blue-400 rounded-lg hover:bg-slate-800 transition" title="重命名/类型">
+                        <button onClick={() => editGroup(groupIdx())} class="p-1.5 text-slate-400 hover:text-blue-400 rounded-lg hover:bg-slate-800 transition" title="重命名/类型">
                           <i class="fa-solid fa-pen-to-square"></i>
                         </button>
-                        <button onClick={() => removeGroup(index())} class="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition" title="删除策略组">
+                        <button onClick={() => removeGroup(groupIdx())} class="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition" title="删除策略组">
                           <i class="fa-solid fa-trash-can"></i>
                         </button>
                       </div>
@@ -728,30 +697,44 @@ export default function App() {
 
                     <div class="space-y-1">
                       <div class="text-xs text-slate-400 mb-1.5 flex items-center justify-between">
-                        <span>包含的节点 / 选项:</span>
+                        <span>包含的节点 / 策略组:</span>
                       </div>
                       <div class="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pr-1">
                         <For each={g.proxies || []}>
                           {(node) => {
                             const isCustom = proxies().some(cp => cp.name === node);
                             const isSubGroup = subscriptionGroups().some(sg => sg.name === node);
-                            const isSpec = node === 'DIRECT' || node === 'REJECT' || node === 'Proxies';
+                            const isSpec = node === 'DIRECT' || node === 'REJECT';
+                            const isMissing = isNodeMissing(node);
 
                             return (
-                              <span class={`text-xs px-2 py-0.5 rounded-md flex items-center gap-1 border ${
+                              <span class={`text-xs pl-2 pr-1 py-0.5 rounded-md flex items-center gap-1.5 border transition ${
+                                isMissing ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' :
                                 isCustom ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' :
                                 isSubGroup ? 'bg-purple-500/15 text-purple-300 border-purple-500/30' :
                                 isSpec ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' :
                                 'bg-slate-800 text-slate-300 border-slate-700'
                               }`}>
-                                <Show when={isCustom}>
+                                <Show when={isMissing}>
+                                  <i class="fa-solid fa-triangle-exclamation text-[10px] text-rose-400" title="该节点在当前订阅中不存在"></i>
+                                </Show>
+                                <Show when={!isMissing && isCustom}>
                                   <i class="fa-solid fa-crown text-[10px] text-emerald-400"></i>
                                 </Show>
-                                <Show when={isSubGroup}>
+                                <Show when={!isMissing && isSubGroup}>
                                   <i class="fa-solid fa-diagram-project text-[10px] text-purple-400"></i>
                                 </Show>
                                 <span>{node}</span>
                                 {renderDelayBadge(node)}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeNodeFromGroupDirect(groupIdx(), node);
+                                  }}
+                                  class="w-4 h-4 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-rose-600 transition"
+                                  title="从当前组中移除">
+                                  &times;
+                                </button>
                               </span>
                             );
                           }}
@@ -768,7 +751,7 @@ export default function App() {
           </div>
         </Show>
 
-        {/* ==================== TAB 3: 域名分流规则 ==================== */}
+        {/* ==================== TAB 2: 域名分流规则 ==================== */}
         <Show when={activeTab() === 'rules'}>
           <div class="space-y-4">
             <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-800/40 p-4 rounded-xl border border-slate-800">
@@ -847,7 +830,7 @@ export default function App() {
                           </td>
 
                           <td class="py-2.5 px-3 font-mono text-slate-200 break-all">
-                            {r.payload}
+                            {{ r: r.payload }.r}
                           </td>
 
                           <td class="py-2.5 px-3">
@@ -892,9 +875,81 @@ export default function App() {
             </div>
           </div>
         </Show>
+
+        {/* ==================== TAB 3: 自建节点 ==================== */}
+        <Show when={activeTab() === 'proxies'}>
+          <div class="space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-800/40 p-4 rounded-xl border border-slate-800">
+              <div>
+                <h2 class="text-base font-semibold text-white">自建私有节点管理</h2>
+                <p class="text-xs text-slate-400 mt-0.5">自建节点会自动注入到配置顶层，可在上方的策略组中直接勾选使用。</p>
+              </div>
+              <div class="flex items-center space-x-2">
+                <button onClick={() => testNodeDelay(proxies().map(p => p.name))} class="text-xs sm:text-sm px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg transition flex items-center gap-1.5">
+                  <i class="fa-solid fa-bolt"></i>
+                  <span>一键全节点测速</span>
+                </button>
+                <button onClick={openImportModal} class="text-xs sm:text-sm px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg transition flex items-center gap-1.5">
+                  <i class="fa-solid fa-link"></i>
+                  <span>导入节点链接</span>
+                </button>
+                <button onClick={openAddProxy} class="text-xs sm:text-sm px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition flex items-center gap-1.5">
+                  <i class="fa-solid fa-plus"></i>
+                  <span>手动添加</span>
+                </button>
+              </div>
+            </div>
+
+            <Show when={proxies().length === 0}>
+              <div class="text-center py-16 bg-slate-900/40 rounded-2xl border border-slate-800 border-dashed">
+                <i class="fa-solid fa-server text-4xl text-slate-600 mb-3"></i>
+                <p class="text-slate-400 text-sm">暂无自建节点，点击上方按钮添加或导入</p>
+              </div>
+            </Show>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <For each={proxies()}>
+                {(p, index) => (
+                  <div class="glass-card p-4 rounded-xl relative group hover:border-slate-700 transition">
+                    <div class="flex items-start justify-between">
+                      <div class="flex-1 pr-3">
+                        <div class="flex items-center gap-2 flex-wrap">
+                          <span class="font-medium text-slate-100 text-sm sm:text-base">{p.name}</span>
+                          <span class="px-2 py-0.5 rounded text-xs font-mono uppercase bg-blue-500/20 text-blue-400 border border-blue-500/30">{p.type}</span>
+                          {renderDelayBadge(p.name)}
+                        </div>
+                        <div class="mt-2 text-xs text-slate-400 space-y-1 font-mono">
+                          <div>服务器: <span class="text-slate-300">{p.server}:{p.port}</span></div>
+                          <Show when={p.servername}>
+                            <div>SNI: <span class="text-slate-300">{p.servername}</span></div>
+                          </Show>
+                          <Show when={p.uuid}>
+                            <div>UUID: <span class="text-slate-400">{p.uuid?.slice(0, 8)}...{p.uuid?.slice(-6)}</span></div>
+                          </Show>
+                        </div>
+                      </div>
+
+                      <div class="flex items-center space-x-1 opacity-80 group-hover:opacity-100 transition">
+                        <button onClick={() => testNodeDelay([p.name])} class="p-1.5 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-slate-800 transition" title="单节点测速">
+                          <i class="fa-solid fa-bolt text-xs"></i>
+                        </button>
+                        <button onClick={() => editProxy(index())} class="p-1.5 text-slate-400 hover:text-blue-400 rounded-lg hover:bg-slate-800 transition" title="编辑">
+                          <i class="fa-solid fa-pen-to-square text-xs"></i>
+                        </button>
+                        <button onClick={() => removeProxy(index())} class="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition" title="删除">
+                          <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </For>
+            </div>
+          </div>
+        </Show>
       </main>
 
-      {/* ==================== 模态框: 调整策略组节点 (支持模糊搜索 + 原生组 + 批量测速) ==================== */}
+      {/* ==================== 模态框: 调整策略组节点 (支持模糊搜索 + 原生组 + 批量测速 + 已选标签栏) ==================== */}
       <Show when={nodeModalOpen()}>
         <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
           <div class="glass-card max-w-3xl w-full p-6 rounded-2xl border border-slate-700 shadow-2xl space-y-4 max-h-[92vh] flex flex-col">
@@ -904,6 +959,46 @@ export default function App() {
                 <p class="text-xs text-slate-400 mt-0.5">支持勾选自建节点、订阅原生组、以及订阅单节点</p>
               </div>
               <button onClick={() => setNodeModalOpen(false)} class="text-slate-400 hover:text-white text-lg">&times;</button>
+            </div>
+
+            {/* 顶栏：当前已选节点标签（可直接一键删除任何项，包括失效项） */}
+            <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-2">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-400">当前已选节点/组 (<b>{selectedNodes().length}</b>):</span>
+                <Show when={missingSelectedNodes().length > 0}>
+                  <button onClick={clearMissingNodes} class="text-[11px] px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30 transition flex items-center gap-1">
+                    <i class="fa-solid fa-broom"></i>
+                    <span>一键清除 {missingSelectedNodes().length} 个失效节点</span>
+                  </button>
+                </Show>
+              </div>
+
+              <div class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+                <For each={selectedNodes()}>
+                  {(name) => {
+                    const isMissing = isNodeMissing(name);
+                    return (
+                      <span class={`text-xs pl-2 pr-1 py-0.5 rounded flex items-center gap-1.5 border transition ${
+                        isMissing ? 'bg-rose-500/20 text-rose-300 border-rose-500/50' : 'bg-blue-500/15 text-blue-300 border-blue-500/30'
+                      }`}>
+                        <Show when={isMissing}>
+                          <i class="fa-solid fa-triangle-exclamation text-[10px] text-rose-400" title="在当前订阅中不存在"></i>
+                        </Show>
+                        <span>{name}</span>
+                        <button
+                          onClick={() => removeNodeFromCurrentGroup(name)}
+                          class="w-4 h-4 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-rose-600 transition"
+                          title="移除">
+                          &times;
+                        </button>
+                      </span>
+                    );
+                  }}
+                </For>
+                <Show when={selectedNodes().length === 0}>
+                  <span class="text-xs text-slate-500 italic">暂未选择任何节点</span>
+                </Show>
+              </div>
             </div>
 
             {/* 搜索与快捷筛选栏 */}
