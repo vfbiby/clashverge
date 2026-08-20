@@ -67,9 +67,9 @@ export default function App() {
   const [editingProxyIndex, setEditingProxyIndex] = createSignal(-1);
   const [proxyForm, setProxyForm] = createSignal<any>({
     name: '',
-    type: 'vless',
+    type: 'anytls',
     server: '',
-    port: 443,
+    port: 8443,
     uuid: '',
     servername: '',
     flow: 'xtls-rprx-vision',
@@ -119,9 +119,14 @@ export default function App() {
     const set = new Set<string>();
     set.add('DIRECT');
     set.add('REJECT');
+    set.add('GLOBAL');
+    set.add('COMPATIBLE');
+    set.add('PASS');
+    set.add('PASS-RULE');
     proxies().forEach(p => set.add(p.name));
     subscriptionGroups().forEach(g => set.add(g.name));
     subscriptionProxies().forEach(p => set.add(p.name));
+    groups().forEach(g => set.add(g.name));
     return set;
   });
 
@@ -214,7 +219,6 @@ export default function App() {
       if (result.success) {
         setIsDirty(false);
         showToast('🎉 配置已成功保存并实时热生效！');
-        // Reload live state
         setTimeout(loadData, 500);
       } else {
         throw new Error(result.error || '保存失败');
@@ -226,7 +230,7 @@ export default function App() {
     }
   };
 
-  // Switch Active Node for a Group directly!
+  // Switch Active Node for a Group directly
   const selectActiveNode = async (groupName: string, nodeName: string) => {
     if (activeGroupNow()[groupName] === nodeName) return;
 
@@ -238,7 +242,7 @@ export default function App() {
       });
       if (res.ok || res.status === 204) {
         setActiveGroupNow(prev => ({ ...prev, [groupName]: nodeName }));
-        showToast(`已将 [${groupName}] 切换为: ${nodeName}`);
+        showToast(`已切换 [${groupName}] 为: ${nodeName}`);
       } else {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.message || '切换失败');
@@ -294,19 +298,19 @@ export default function App() {
     const delay = delays()[name];
 
     if (isTesting) {
-      return <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 animate-pulse font-mono flex items-center gap-1"><i class="fa-solid fa-spinner fa-spin"></i> 测速中</span>;
+      return <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 animate-pulse font-mono flex items-center gap-1 shrink-0"><i class="fa-solid fa-spinner fa-spin"></i> 测速</span>;
     }
     if (delay === undefined) return null;
     if (delay <= 0) {
-      return <span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 font-mono">超时</span>;
+      return <span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 font-mono shrink-0">超时</span>;
     }
     if (delay < 200) {
-      return <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono">{delay}ms</span>;
+      return <span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono shrink-0">{delay}ms</span>;
     }
     if (delay < 450) {
-      return <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-mono">{delay}ms</span>;
+      return <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-mono shrink-0">{delay}ms</span>;
     }
-    return <span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 font-mono">{delay}ms</span>;
+    return <span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 font-mono shrink-0">{delay}ms</span>;
   };
 
   // Node Filter in Modal
@@ -646,18 +650,18 @@ export default function App() {
               核心: <span class="text-slate-200 font-mono ml-1">127.0.0.1:9097</span>
             </div>
 
-            <a href="/dashboard" target="_blank" class="text-xs sm:text-sm px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition flex items-center gap-1.5 border border-slate-700">
+            <a href="/dashboard" target="_blank" class="text-xs sm:text-sm px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition flex items-center gap-1.5 border border-slate-700 whitespace-nowrap">
               <i class="fa-solid fa-chart-line text-blue-400"></i>
               <span>监控仪表盘</span>
             </a>
 
-            <button onClick={loadData} disabled={saving()} class="text-xs sm:text-sm px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition flex items-center gap-1.5 border border-slate-700">
+            <button onClick={loadData} disabled={saving()} class="text-xs sm:text-sm px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition flex items-center gap-1.5 border border-slate-700 whitespace-nowrap">
               <i class={`fa-solid fa-rotate text-slate-400 ${loading() ? 'fa-spin' : ''}`}></i>
               <span>刷新</span>
             </button>
 
             <button onClick={saveConfig} disabled={saving() || !isDirty()}
-              class={`text-xs sm:text-sm font-medium px-4 py-1.5 rounded-lg transition flex items-center gap-2 shadow-lg ${
+              class={`text-xs sm:text-sm font-medium px-4 py-1.5 rounded-lg transition flex items-center gap-2 shadow-lg whitespace-nowrap ${
                 isDirty() ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-blue-500/20 ring-2 ring-blue-500/50' : 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700'
               }`}>
               <i class={`fa-solid fa-cloud-arrow-up ${saving() ? 'fa-bounce' : ''}`}></i>
@@ -714,71 +718,80 @@ export default function App() {
           </div>
         </Show>
 
-        {/* ==================== TAB 1: 代理策略组 (支持直接点选切换活动节点) ==================== */}
+        {/* ==================== TAB 1: 代理策略组 (优雅排版 & 长名称自适应) ==================== */}
         <Show when={activeTab() === 'groups'}>
           <div class="space-y-4">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-800/40 p-4 rounded-xl border border-slate-800">
               <div>
                 <h2 class="text-base font-semibold text-white">代理策略组管理</h2>
                 <p class="text-xs text-slate-400 mt-0.5">
-                  <span class="text-blue-400 font-medium">🎯 直接点击下方节点即可瞬间切换当前使用的节点</span>；点击「调整节点」可勾选增删节点。
+                  <span class="text-blue-400 font-medium">🎯 点击下方胶囊按钮即可瞬间切换当前使用的节点</span>；点击「调整节点」可勾选增删节点。
                 </p>
               </div>
-              <button onClick={openAddGroup} class="text-xs sm:text-sm px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg transition flex items-center gap-1.5">
+              <button onClick={openAddGroup} class="text-xs sm:text-sm px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg transition flex items-center gap-1.5 whitespace-nowrap">
                 <i class="fa-solid fa-folder-plus"></i>
                 <span>新建策略组</span>
               </button>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <For each={groups()}>
                 {(g, groupIdx) => {
                   const currentActive = () => activeGroupNow()[g.name];
 
                   return (
-                    <div class="glass-card p-4 rounded-xl relative group">
-                      <div class="flex items-center justify-between mb-3 border-b border-slate-800 pb-3">
-                        <div class="flex items-center gap-2">
-                          <div class="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30">
+                    <div class="glass-card p-4 rounded-xl relative flex flex-col justify-between space-y-3">
+                      {/* 卡片顶部：组名 + 类型 + 操作按钮 */}
+                      <div class="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                        <div class="flex items-center gap-2 min-w-0">
+                          <div class="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30 shrink-0">
                             <i class="fa-solid fa-layer-group text-sm"></i>
                           </div>
-                          <div>
-                            <div class="flex items-center gap-2">
-                              <h3 class="font-medium text-white text-sm sm:text-base">{g.name}</h3>
-                              <Show when={currentActive()}>
-                                <span class="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-medium">
-                                  使用中: <span class="font-bold text-white">{currentActive()}</span>
-                                </span>
-                              </Show>
-                            </div>
-                            <span class="text-xs text-slate-400 font-mono">类型: {g.type}</span>
+                          <div class="min-w-0">
+                            <h3 class="font-semibold text-white text-sm sm:text-base truncate" title={g.name}>{g.name}</h3>
+                            <span class="text-[11px] text-slate-400 font-mono">类型: {g.type}</span>
                           </div>
                         </div>
 
-                        <div class="flex items-center space-x-1.5">
-                          <button onClick={() => testGroupDelay(groupIdx())} class="text-xs px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-lg border border-emerald-500/30 transition flex items-center gap-1" title="仅测试该组内包含的节点">
-                            <i class="fa-solid fa-bolt"></i>
+                        {/* 顶部操作按钮栏（强制不换行） */}
+                        <div class="flex items-center space-x-1.5 shrink-0">
+                          <button onClick={() => testGroupDelay(groupIdx())} class="text-xs px-2.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-lg border border-emerald-500/30 transition flex items-center gap-1 whitespace-nowrap" title="仅测试该组内包含的节点">
+                            <i class="fa-solid fa-bolt text-xs"></i>
                             <span>测速 ({g.proxies ? g.proxies.length : 0})</span>
                           </button>
-                          <button onClick={() => openGroupNodeSelector(groupIdx())} class="text-xs px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 rounded-lg border border-slate-700 transition flex items-center gap-1">
-                            <i class="fa-solid fa-list-check"></i>
+                          <button onClick={() => openGroupNodeSelector(groupIdx())} class="text-xs px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-blue-400 rounded-lg border border-slate-700 transition flex items-center gap-1 whitespace-nowrap">
+                            <i class="fa-solid fa-list-check text-xs"></i>
                             <span>调整节点</span>
                           </button>
                           <button onClick={() => editGroup(groupIdx())} class="p-1.5 text-slate-400 hover:text-blue-400 rounded-lg hover:bg-slate-800 transition" title="重命名/类型">
-                            <i class="fa-solid fa-pen-to-square"></i>
+                            <i class="fa-solid fa-pen-to-square text-xs"></i>
                           </button>
                           <button onClick={() => removeGroup(groupIdx())} class="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition" title="删除策略组">
-                            <i class="fa-solid fa-trash-can"></i>
+                            <i class="fa-solid fa-trash-can text-xs"></i>
                           </button>
                         </div>
                       </div>
 
-                      <div class="space-y-1.5">
-                        <div class="text-xs text-slate-400 mb-1 flex items-center justify-between">
-                          <span>点击切换使用的节点:</span>
-                          <span class="text-[11px] text-slate-500">点击即刻生效</span>
+                      {/* 当前活动节点状态栏 */}
+                      <div class="bg-slate-900/60 px-3 py-1.5 rounded-lg border border-slate-800/80 flex items-center justify-between text-xs gap-2">
+                        <span class="text-slate-400 shrink-0">当前生效节点:</span>
+                        <div class="flex items-center gap-1.5 min-w-0">
+                          <span class="font-medium text-blue-300 truncate font-mono" title={currentActive() || '未指定'}>
+                            {currentActive() || '未指定 / DIRECT'}
+                          </span>
+                          <Show when={currentActive()}>
+                            {renderDelayBadge(currentActive()!)}
+                          </Show>
                         </div>
-                        <div class="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-1 py-1">
+                      </div>
+
+                      {/* 节点选择胶囊列表 */}
+                      <div class="space-y-1.5">
+                        <div class="text-[11px] text-slate-400 flex items-center justify-between">
+                          <span>点击下方切换节点:</span>
+                          <span class="text-slate-500">即点即通</span>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1 py-1">
                           <For each={g.proxies || []}>
                             {(node) => {
                               const isCustom = proxies().some(cp => cp.name === node);
@@ -791,42 +804,44 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => selectActiveNode(g.name, node)}
-                                  class={`text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-2 border transition-all text-left select-none ${
+                                  title={node}
+                                  class={`text-xs px-2.5 py-2 rounded-lg flex items-center justify-between gap-2 border transition-all text-left select-none ${
                                     isActive()
-                                      ? 'bg-blue-600/30 text-white border-blue-400 shadow-md shadow-blue-500/25 ring-1 ring-blue-500 font-medium scale-[1.02]'
+                                      ? 'bg-blue-600/30 text-white border-blue-400 shadow-md shadow-blue-500/20 ring-1 ring-blue-500 font-medium'
                                       : isMissing
-                                      ? 'bg-rose-500/15 text-rose-300 border-rose-500/30 hover:border-rose-500/60'
+                                      ? 'bg-rose-500/10 text-rose-300 border-rose-500/30 hover:border-rose-500/60'
                                       : isCustom
                                       ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30 hover:border-emerald-400 hover:bg-emerald-500/20'
                                       : isSubGroup
                                       ? 'bg-purple-500/10 text-purple-300 border-purple-500/30 hover:border-purple-400 hover:bg-purple-500/20'
                                       : isSpec
                                       ? 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:border-amber-400 hover:bg-amber-500/20'
-                                      : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:border-slate-500 hover:bg-slate-800'
+                                      : 'bg-slate-800/70 text-slate-300 border-slate-700/80 hover:border-slate-500 hover:bg-slate-800'
                                   }`}>
-                                  {/* Radio Icon Indicator */}
-                                  <Show when={isActive()} fallback={<i class="fa-regular fa-circle text-slate-500 text-[11px]"></i>}>
-                                    <i class="fa-solid fa-circle-check text-blue-400 text-xs"></i>
-                                  </Show>
-
-                                  <Show when={isMissing}>
-                                    <i class="fa-solid fa-triangle-exclamation text-[10px] text-rose-400" title="当前不可用"></i>
-                                  </Show>
-                                  <Show when={!isMissing && isCustom}>
-                                    <i class="fa-solid fa-crown text-[10px] text-emerald-400" title="自建私有节点"></i>
-                                  </Show>
-                                  <Show when={!isMissing && isSubGroup}>
-                                    <i class="fa-solid fa-diagram-project text-[10px] text-purple-400" title="订阅原生策略组"></i>
-                                  </Show>
-
-                                  <span class="truncate max-w-[180px]">{node}</span>
-                                  {renderDelayBadge(node)}
+                                  <div class="flex items-center gap-1.5 min-w-0 flex-1">
+                                    <Show when={isActive()} fallback={<i class="fa-regular fa-circle text-slate-500 text-[10px] shrink-0"></i>}>
+                                      <i class="fa-solid fa-circle-check text-blue-400 text-xs shrink-0"></i>
+                                    </Show>
+                                    <Show when={isMissing}>
+                                      <i class="fa-solid fa-triangle-exclamation text-[10px] text-rose-400 shrink-0" title="在当前订阅中不存在"></i>
+                                    </Show>
+                                    <Show when={!isMissing && isCustom}>
+                                      <i class="fa-solid fa-crown text-[10px] text-emerald-400 shrink-0" title="自建节点"></i>
+                                    </Show>
+                                    <Show when={!isMissing && isSubGroup}>
+                                      <i class="fa-solid fa-diagram-project text-[10px] text-purple-400 shrink-0" title="订阅原生组"></i>
+                                    </Show>
+                                    <span class="truncate font-mono">{node}</span>
+                                  </div>
+                                  <div class="shrink-0">
+                                    {renderDelayBadge(node)}
+                                  </div>
                                 </button>
                               );
                             }}
                           </For>
                           <Show when={!g.proxies || g.proxies.length === 0}>
-                            <span class="text-xs text-slate-500 italic">暂未选择任何节点</span>
+                            <div class="col-span-2 text-xs text-slate-500 italic py-2">暂未选择任何节点</div>
                           </Show>
                         </div>
                       </div>
@@ -963,7 +978,7 @@ export default function App() {
           </div>
         </Show>
 
-        {/* ==================== TAB 3: 自建节点 (支持 AnyTLS, VLESS, Reality, SS, Trojan) ==================== */}
+        {/* ==================== TAB 3: 自建节点 ==================== */}
         <Show when={activeTab() === 'proxies'}>
           <div class="space-y-4">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-800/40 p-4 rounded-xl border border-slate-800">
@@ -972,15 +987,15 @@ export default function App() {
                 <p class="text-xs text-slate-400 mt-0.5">原生支持 <b class="text-cyan-400 font-mono">AnyTLS</b>、<b class="text-purple-400 font-mono">Reality</b>、<b class="text-blue-400 font-mono">VLESS</b> 等私有协议，自动注入顶层配置。</p>
               </div>
               <div class="flex items-center space-x-2">
-                <button onClick={() => testNodeDelay(proxies().map(p => p.name))} class="text-xs sm:text-sm px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg transition flex items-center gap-1.5">
+                <button onClick={() => testNodeDelay(proxies().map(p => p.name))} class="text-xs sm:text-sm px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg transition flex items-center gap-1.5 whitespace-nowrap">
                   <i class="fa-solid fa-bolt"></i>
                   <span>一键测速全部自建节点</span>
                 </button>
-                <button onClick={openImportModal} class="text-xs sm:text-sm px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg transition flex items-center gap-1.5">
+                <button onClick={openImportModal} class="text-xs sm:text-sm px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg transition flex items-center gap-1.5 whitespace-nowrap">
                   <i class="fa-solid fa-link"></i>
                   <span>导入节点链接</span>
                 </button>
-                <button onClick={openAddProxy} class="text-xs sm:text-sm px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition flex items-center gap-1.5">
+                <button onClick={openAddProxy} class="text-xs sm:text-sm px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg transition flex items-center gap-1.5 whitespace-nowrap">
                   <i class="fa-solid fa-plus"></i>
                   <span>手动添加</span>
                 </button>
@@ -999,26 +1014,26 @@ export default function App() {
                 {(p, index) => (
                   <div class="glass-card p-4 rounded-xl relative group hover:border-slate-700 transition">
                     <div class="flex items-start justify-between">
-                      <div class="flex-1 pr-3">
+                      <div class="flex-1 pr-3 min-w-0">
                         <div class="flex items-center gap-2 flex-wrap">
-                          <span class="font-medium text-slate-100 text-sm sm:text-base">{p.name}</span>
-                          <span class={`px-2 py-0.5 rounded text-xs font-mono uppercase border ${
+                          <span class="font-medium text-slate-100 text-sm sm:text-base truncate" title={p.name}>{p.name}</span>
+                          <span class={`px-2 py-0.5 rounded text-xs font-mono uppercase border shrink-0 ${
                             p.type === 'anytls' ? 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30 font-bold' :
                             p.type === 'vless' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
                             'bg-indigo-500/20 text-indigo-400 border-indigo-500/30'
                           }`}>{p.type}</span>
                           <Show when={p.tls}>
-                            <span class="px-1.5 py-0.5 rounded text-xs bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">TLS</span>
+                            <span class="px-1.5 py-0.5 rounded text-xs bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 shrink-0">TLS</span>
                           </Show>
                           <Show when={p['reality-opts']}>
-                            <span class="px-1.5 py-0.5 rounded text-xs bg-purple-500/20 text-purple-400 border border-purple-500/30">Reality</span>
+                            <span class="px-1.5 py-0.5 rounded text-xs bg-purple-500/20 text-purple-400 border border-purple-500/30 shrink-0">Reality</span>
                           </Show>
                           {renderDelayBadge(p.name)}
                         </div>
                         <div class="mt-2 text-xs text-slate-400 space-y-1 font-mono">
                           <div>服务器: <span class="text-slate-300">{p.server}:{p.port}</span></div>
                           <Show when={p.sni || p.servername}>
-                            <div>SNI: <span class="text-slate-300">{p.sni || p.servername}</span></div>
+                            <div class="truncate">SNI: <span class="text-slate-300">{p.sni || p.servername}</span></div>
                           </Show>
                           <Show when={p.alpn && p.alpn.length > 0}>
                             <div>ALPN: <span class="text-cyan-300">{p.alpn.join(', ')}</span></div>
@@ -1029,7 +1044,7 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div class="flex items-center space-x-1 opacity-80 group-hover:opacity-100 transition">
+                      <div class="flex items-center space-x-1 opacity-80 group-hover:opacity-100 transition shrink-0">
                         <button onClick={() => testNodeDelay([p.name])} class="p-1.5 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-slate-800 transition" title="单节点测速">
                           <i class="fa-solid fa-bolt text-xs"></i>
                         </button>
@@ -1084,7 +1099,7 @@ export default function App() {
                         <Show when={isMissing}>
                           <i class="fa-solid fa-triangle-exclamation text-[10px] text-rose-400" title="在当前订阅中不存在"></i>
                         </Show>
-                        <span>{name}</span>
+                        <span class="truncate max-w-[200px]" title={name}>{name}</span>
                         <button
                           onClick={() => removeNodeFromCurrentGroup(name)}
                           class="w-4 h-4 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-rose-600 transition"
@@ -1187,7 +1202,7 @@ export default function App() {
                           }`}>
                           <div class="flex items-center gap-2 min-w-0 pr-2">
                             <input type="checkbox" checked={selectedNodes().includes(cp.name)} onChange={() => toggleNodeSelection(cp.name)} class="rounded text-emerald-500" />
-                            <span class="truncate">{cp.name}</span>
+                            <span class="truncate" title={cp.name}>{cp.name}</span>
                           </div>
                           {renderDelayBadge(cp.name)}
                         </label>
@@ -1214,9 +1229,9 @@ export default function App() {
                           }`}>
                           <div class="flex items-center gap-2 min-w-0 pr-2">
                             <input type="checkbox" checked={selectedNodes().includes(sg.name)} onChange={() => toggleNodeSelection(sg.name)} class="rounded text-purple-500" />
-                            <span class="truncate">{sg.name}</span>
+                            <span class="truncate" title={sg.name}>{sg.name}</span>
                           </div>
-                          <span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 font-mono">{sg.type}</span>
+                          <span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 font-mono shrink-0">{sg.type}</span>
                         </label>
                       )}
                     </For>
@@ -1239,7 +1254,7 @@ export default function App() {
                         }`}>
                         <div class="flex items-center gap-2 min-w-0 pr-2">
                           <input type="checkbox" checked={selectedNodes().includes(sp.name)} onChange={() => toggleNodeSelection(sp.name)} class="rounded text-blue-500" />
-                          <span class="truncate">{sp.name}</span>
+                          <span class="truncate" title={sp.name}>{sp.name}</span>
                         </div>
                         {renderDelayBadge(sp.name)}
                       </label>
