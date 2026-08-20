@@ -81,12 +81,10 @@ groups:
     proxies:
       - 🇺🇸 USA_Los_LAX-DC2 xtls-reality
       - anytls-8443
-      - 🚀 节点选择
   - name: CustomDirect
     type: select
     proxies:
       - DIRECT
-      - 🚀 节点选择
 rules:
   - DOMAIN-SUFFIX,node10.de5.net,Custom
   - DOMAIN-SUFFIX,muskzhang.ccwu.cc,Custom

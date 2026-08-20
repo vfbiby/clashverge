@@ -1,39 +1,33 @@
-# 你的全局扩展配置（Merge）里只需要留这干净的一段：
+# 你的全局扩展配置（Merge）
 external-ui: ui
-
 dns:
   enable: true
   listen: 0.0.0.0:53
   enhanced-mode: fake-ip
   fake-ip-range: 198.18.0.1/16
-
-  # 基础 Fake-IP 白名单（避免局域网和系统连通性测试异常）
   fake-ip-filter:
-    - '*.lan'
-    - '*.local'
-    - '+.msftconnecttest.com'
-    - '+.msftncsi.com'
-    - 'localhost.ptlogin2.qq.com'
-
+    - "*.lan"
+    - "*.local"
+    - +.msftconnecttest.com
+    - +.msftncsi.com
+    - localhost.ptlogin2.qq.com
   default-nameserver:
     - 223.5.5.5
     - 119.29.29.29
     - 1.1.1.1
-
   nameserver-policy:
-    "geosite:cn": [https://dns.alicdn.com/dns-query, https://doh.pub/dns-query]
-    "geosite:private": [223.5.5.5]
-
+    geosite:cn:
+      - https://dns.alicdn.com/dns-query
+      - https://doh.pub/dns-query
+    geosite:private:
+      - 223.5.5.5
   nameserver:
     - https://1.1.1.1/dns-query
     - https://8.8.8.8/dns-query
     - https://dns.cloudflare.com/dns-query
-
   proxy-server-nameserver:
     - 223.5.5.5
     - 119.29.29.29
-
-# 开启域名嗅探，强行覆盖死 IP 目标
 sniffer:
   enable: true
   override-destination: true
@@ -41,31 +35,12 @@ sniffer:
   parse-pure-ip: true
   sniff:
     TLS:
-      ports: [443, 8443]
+      ports:
+        - 443
+        - 8443
     HTTP:
-      ports: [80, 8080-8880]
+      ports:
+        - 80
+        - 8080-8880
       override-destination: true
 
-# === Claude & Anthropic 防泄漏诱饵 IP 映射 ===
-
-# # 1. claude.ai 主域
-# 198.18.254.254 claude.ai
-# 198.18.254.254 www.claude.ai
-
-# # 2. anthropic.com API 与追踪
-# 198.18.254.254 anthropic.com
-# 198.18.254.254 www.anthropic.com
-# 198.18.254.254 api.anthropic.com
-# 198.18.254.254 stats.anthropic.com
-
-# # 3. 补充域名 (claude.com / clau.de)
-# 198.18.254.254 claude.com
-# 198.18.254.254 www.claude.com
-# 198.18.254.254 clau.de
-# 198.18.254.254 www.clau.de
-
-# # 4. 用户附件与内容托管
-# 198.18.254.254 claudeusercontent.com
-# 198.18.254.254 www.claudeusercontent.com
-
-# http://154.53.75.226:43365/decf85cf-9aca-4328-a071-3837631098eb/clash
