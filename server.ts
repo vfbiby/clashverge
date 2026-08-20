@@ -13,6 +13,7 @@ const CUSTOM_CONFIG_PATH = path.join(CODE_DIR, "custom-config.yaml");
 const SCRIPT_PATH = path.join(CODE_DIR, "Script.js");
 const MERGE_PATH = path.join(CODE_DIR, "Merge.yaml");
 const DIST_DIR = path.join(CODE_DIR, "dist");
+const VERGE_CONFIG_PATH = path.join(process.env.HOME || "", "Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/clash-verge.yaml");
 const METACUBEXD_DIR = path.join(process.env.HOME || "", "Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/ui");
 
 // 确保 custom-config.yaml 存在
@@ -37,11 +38,10 @@ function saveAndSyncConfig(configData: { base: any; proxies: any[]; groups: any[
 
   // 1. 注入自建节点
   const myCustomProxies = ${JSON.stringify(configData.proxies || [], null, 2)};
-  const customProxyNames = myCustomProxies.map((p) => p.name);
   myCustomProxies.forEach((p) => {
-    if (!config.proxies.some((existing) => existing.name === p.name)) {
-      config.proxies.unshift(p);
-    }
+    const idx = config.proxies.findIndex((existing) => existing.name === p.name);
+    if (idx >= 0) config.proxies[idx] = p;
+    else config.proxies.unshift(p);
   });
 
   // 2. 注入自定义策略组
@@ -71,6 +71,43 @@ ${YAML.stringify(configData.base || {})}
 `;
   fs.writeFileSync(MERGE_PATH, mergeContent, "utf-8");
 
+  // 4. 直接热注入到运行中的 clash-verge.yaml 并触发核心重载
+  try {
+    if (fs.existsSync(VERGE_CONFIG_PATH)) {
+      const vergeRaw = fs.readFileSync(VERGE_CONFIG_PATH, "utf-8");
+      const vergeConfig = YAML.parse(vergeRaw) || {};
+      
+      if (!Array.isArray(vergeConfig.proxies)) vergeConfig.proxies = [];
+      if (!Array.isArray(vergeConfig["proxy-groups"])) vergeConfig["proxy-groups"] = [];
+      if (!Array.isArray(vergeConfig.rules)) vergeConfig.rules = [];
+
+      // 注入自建节点
+      (configData.proxies || []).forEach((p: any) => {
+        const idx = vergeConfig.proxies.findIndex((existing: any) => existing.name === p.name);
+        if (idx >= 0) vergeConfig.proxies[idx] = p;
+        else vergeConfig.proxies.unshift(p);
+      });
+
+      // 注入自定义策略组
+      const customGroupNames = (configData.groups || []).map((g: any) => g.name);
+      vergeConfig["proxy-groups"] = vergeConfig["proxy-groups"].filter((g: any) => !customGroupNames.includes(g.name));
+      vergeConfig["proxy-groups"].unshift(...(configData.groups || []));
+
+      // 注入规则
+      const priorityRules = configData.rules || [];
+      vergeConfig.rules = [
+        ...priorityRules,
+        ...vergeConfig.rules.filter(
+          (rule: string) => !priorityRules.some((r: string) => r.trim().toLowerCase() === rule.trim().toLowerCase())
+        )
+      ];
+
+      fs.writeFileSync(VERGE_CONFIG_PATH, YAML.stringify(vergeConfig), "utf-8");
+    }
+  } catch (err) {
+    console.error("Direct injection to clash-verge.yaml error:", err);
+  }
+
   return { success: true };
 }
 
@@ -84,7 +121,7 @@ function parseProxyLink(link: string) {
     const params = url.searchParams;
     const name = decodeURIComponent(url.hash.replace("#", "") || `${server}:${port}`);
     const security = params.get("security") || "";
-    const sni = params.get("sni") || params.get("serverName") || "";
+    const sni = params.get("sni") || params.get("peer") || params.get("serverName") || "";
     const flow = params.get("flow") || "";
     const pbk = params.get("pbk") || params.get("public-key") || "";
     const fp = params.get("fp") || params.get("client-fingerprint") || "chrome";
@@ -114,23 +151,30 @@ function parseProxyLink(link: string) {
     const password = url.username;
     const server = url.hostname;
     const port = parseInt(url.port || "443", 10);
-    const sni = url.searchParams.get("sni") || url.searchParams.get("servername") || server;
-    const alpnStr = url.searchParams.get("alpn") || "h2";
+    const sni = url.searchParams.get("peer") || url.searchParams.get("sni") || url.searchParams.get("servername") || server;
+    const alpnStr = url.searchParams.get("alpn") || "";
     const fp = url.searchParams.get("fp") || url.searchParams.get("client-fingerprint") || "chrome";
     const name = decodeURIComponent(url.hash.replace("#", "") || `${server}:${port}`);
-    return {
+    const insecure = url.searchParams.get("insecure") === "1" || url.searchParams.get("skip-cert-verify") === "true";
+    
+    const proxy: any = {
       name,
       type: "anytls",
       server,
       port,
       password,
       sni,
-      alpn: alpnStr.split(","),
-      "client-fingerprint": fp,
-      "skip-cert-verify": true,
+      "skip-cert-verify": insecure || true,
       udp: true,
       tfo: false,
     };
+    if (alpnStr) {
+      proxy.alpn = alpnStr.split(",");
+    }
+    if (fp) {
+      proxy["client-fingerprint"] = fp;
+    }
+    return proxy;
   } else if (link.startsWith("ss://")) {
     const name = link.includes("#") ? decodeURIComponent(link.split("#")[1]) : "Shadowsocks";
     let mainPart = link.replace("ss://", "").split("#")[0];
@@ -166,7 +210,7 @@ function parseProxyLink(link: string) {
     const password = url.username;
     const server = url.hostname;
     const port = parseInt(url.port || "443", 10);
-    const sni = url.searchParams.get("sni") || server;
+    const sni = url.searchParams.get("sni") || url.searchParams.get("peer") || server;
     const name = decodeURIComponent(url.hash.replace("#", "") || `${server}:${port}`);
     return {
       name,
@@ -250,14 +294,13 @@ const server = serve<WsData>({
 
         // 触发核心热重载
         try {
-          const vergeConfigPath = "/Users/zhangsike/Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/clash-verge.yaml";
           await fetch(`${BACKEND}/configs?force=true`, {
             method: "PUT",
             headers: {
               "Authorization": `Bearer ${SECRET}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ path: vergeConfigPath }),
+            body: JSON.stringify({ path: VERGE_CONFIG_PATH }),
           });
         } catch (_) {}
 
