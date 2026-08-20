@@ -28,7 +28,7 @@ interface SubscriptionGroup {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = createSignal<'proxies' | 'groups' | 'rules'>('groups');
+  const [activeTab, setActiveTab] = createSignal<'groups' | 'rules' | 'proxies'>('groups');
   const [loading, setLoading] = createSignal(false);
   const [saving, setSaving] = createSignal(false);
   const [isDirty, setIsDirty] = createSignal(false);
@@ -203,7 +203,7 @@ export default function App() {
     }
   };
 
-  // Latency Testing
+  // Latency Testing - ONLY tests the specified nodes
   const testNodeDelay = async (nodeNames: string[]) => {
     if (!nodeNames || nodeNames.length === 0) return;
     const filterValid = nodeNames.filter(n => n !== 'DIRECT' && n !== 'REJECT');
@@ -224,6 +224,7 @@ export default function App() {
       const data = await res.json();
       if (data.results) {
         setDelays(prev => ({ ...prev, ...data.results }));
+        showToast(`已完成 ${filterValid.length} 个节点的延迟测试`);
       }
     } catch (err: any) {
       showToast('测速请求失败: ' + err.message, 'error');
@@ -238,7 +239,7 @@ export default function App() {
 
   const testGroupDelay = (groupIndex: number) => {
     const g = groups()[groupIndex];
-    if (g && g.proxies) {
+    if (g && g.proxies && g.proxies.length > 0) {
       testNodeDelay(g.proxies);
     }
   };
@@ -316,18 +317,6 @@ export default function App() {
 
   const removeNodeFromCurrentGroup = (nodeName: string) => {
     setSelectedNodes(selectedNodes().filter(n => n !== nodeName));
-  };
-
-  // Direct remove node from main page card
-  const removeNodeFromGroupDirect = (groupIndex: number, nodeName: string) => {
-    const next = [...groups()];
-    next[groupIndex] = {
-      ...next[groupIndex],
-      proxies: next[groupIndex].proxies.filter(n => n !== nodeName),
-    };
-    setGroups(next);
-    setIsDirty(true);
-    showToast(`已从组 "${next[groupIndex].name}" 中移除节点: ${nodeName}`);
   };
 
   // Clean all missing/orphaned nodes from current modal selection
@@ -654,7 +643,7 @@ export default function App() {
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-800/40 p-4 rounded-xl border border-slate-800">
               <div>
                 <h2 class="text-base font-semibold text-white">代理策略组管理</h2>
-                <p class="text-xs text-slate-400 mt-0.5">点击标签上的 <span class="text-rose-400 font-bold">✖</span> 可直接移除节点；点击「调整节点」可自由勾选自建节点或订阅里的原生策略组。</p>
+                <p class="text-xs text-slate-400 mt-0.5">点击策略组上的「⚡ 测速」可仅测试组内的节点；点击「调整节点」可安全增删节点与订阅原生组。</p>
               </div>
               <button onClick={openAddGroup} class="text-xs sm:text-sm px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg transition flex items-center gap-1.5">
                 <i class="fa-solid fa-folder-plus"></i>
@@ -678,13 +667,13 @@ export default function App() {
                       </div>
 
                       <div class="flex items-center space-x-1.5">
-                        <button onClick={() => testGroupDelay(groupIdx())} class="text-xs px-2 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-lg border border-emerald-500/30 transition flex items-center gap-1" title="测速组内节点">
+                        <button onClick={() => testGroupDelay(groupIdx())} class="text-xs px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 rounded-lg border border-emerald-500/30 transition flex items-center gap-1" title="仅测试该组内包含的节点">
                           <i class="fa-solid fa-bolt"></i>
-                          <span>测速</span>
+                          <span>测速 ({g.proxies ? g.proxies.length : 0})</span>
                         </button>
                         <button onClick={() => openGroupNodeSelector(groupIdx())} class="text-xs px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-blue-400 rounded-lg border border-slate-700 transition flex items-center gap-1">
                           <i class="fa-solid fa-list-check"></i>
-                          <span>调整节点 ({g.proxies ? g.proxies.length : 0})</span>
+                          <span>调整节点</span>
                         </button>
                         <button onClick={() => editGroup(groupIdx())} class="p-1.5 text-slate-400 hover:text-blue-400 rounded-lg hover:bg-slate-800 transition" title="重命名/类型">
                           <i class="fa-solid fa-pen-to-square"></i>
@@ -708,7 +697,7 @@ export default function App() {
                             const isMissing = isNodeMissing(node);
 
                             return (
-                              <span class={`text-xs pl-2 pr-1 py-0.5 rounded-md flex items-center gap-1.5 border transition ${
+                              <span class={`text-xs px-2 py-0.5 rounded-md flex items-center gap-1.5 border select-none transition ${
                                 isMissing ? 'bg-rose-500/20 text-rose-300 border-rose-500/40' :
                                 isCustom ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' :
                                 isSubGroup ? 'bg-purple-500/15 text-purple-300 border-purple-500/30' :
@@ -726,15 +715,6 @@ export default function App() {
                                 </Show>
                                 <span>{node}</span>
                                 {renderDelayBadge(node)}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    removeNodeFromGroupDirect(groupIdx(), node);
-                                  }}
-                                  class="w-4 h-4 rounded-full flex items-center justify-center text-slate-400 hover:text-white hover:bg-rose-600 transition"
-                                  title="从当前组中移除">
-                                  &times;
-                                </button>
                               </span>
                             );
                           }}
@@ -887,7 +867,7 @@ export default function App() {
               <div class="flex items-center space-x-2">
                 <button onClick={() => testNodeDelay(proxies().map(p => p.name))} class="text-xs sm:text-sm px-3 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg transition flex items-center gap-1.5">
                   <i class="fa-solid fa-bolt"></i>
-                  <span>一键全节点测速</span>
+                  <span>一键测速全部自建节点</span>
                 </button>
                 <button onClick={openImportModal} class="text-xs sm:text-sm px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg transition flex items-center gap-1.5">
                   <i class="fa-solid fa-link"></i>
@@ -956,12 +936,12 @@ export default function App() {
             <div class="flex items-center justify-between border-b border-slate-800 pb-3">
               <div>
                 <h3 class="font-semibold text-white text-base">调整策略组节点: <span class="text-indigo-400">{currentGroupName()}</span></h3>
-                <p class="text-xs text-slate-400 mt-0.5">支持勾选自建节点、订阅原生组、以及订阅单节点</p>
+                <p class="text-xs text-slate-400 mt-0.5">支持在此安全移除节点、勾选自建节点、订阅原生组与单节点</p>
               </div>
               <button onClick={() => setNodeModalOpen(false)} class="text-slate-400 hover:text-white text-lg">&times;</button>
             </div>
 
-            {/* 顶栏：当前已选节点标签（可直接一键删除任何项，包括失效项） */}
+            {/* 顶栏：当前已选节点标签（安全在此删除） */}
             <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800 space-y-2">
               <div class="flex items-center justify-between text-xs">
                 <span class="text-slate-400">当前已选节点/组 (<b>{selectedNodes().length}</b>):</span>
@@ -1016,7 +996,7 @@ export default function App() {
                 </div>
                 <button onClick={() => testNodeDelay(selectedNodes())} class="px-3 py-2 text-xs bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg transition flex items-center gap-1.5 whitespace-nowrap">
                   <i class="fa-solid fa-bolt"></i>
-                  <span>测速已选</span>
+                  <span>仅测速当前已选 ({selectedNodes().length})</span>
                 </button>
               </div>
 
