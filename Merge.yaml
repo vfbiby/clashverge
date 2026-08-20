@@ -1,4 +1,6 @@
 # 你的全局扩展配置（Merge）里只需要留这干净的一段：
+external-ui: ui
+
 dns:
   enable: true
   listen: 0.0.0.0:53
