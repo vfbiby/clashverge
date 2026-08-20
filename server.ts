@@ -12,7 +12,7 @@ const CODE_DIR = "/Users/zhangsike/codes/clashverge";
 const CUSTOM_CONFIG_PATH = path.join(CODE_DIR, "custom-config.yaml");
 const SCRIPT_PATH = path.join(CODE_DIR, "Script.js");
 const MERGE_PATH = path.join(CODE_DIR, "Merge.yaml");
-const PUBLIC_DIR = path.join(CODE_DIR, "public");
+const DIST_DIR = path.join(CODE_DIR, "dist");
 const METACUBEXD_DIR = path.join(process.env.HOME || "", "Library/Application Support/io.github.clash-verge-rev.clash-verge-rev/ui");
 
 // 确保 custom-config.yaml 存在
@@ -255,28 +255,92 @@ const server = serve<WsData>({
         const data: any = await res.json();
         const proxiesMap = data.proxies || {};
 
-        // 提取普通代理节点
         const customData = loadCustomConfig();
         const customProxyNames = (customData.proxies || []).map((p: any) => p.name);
+        const customGroupNames = (customData.groups || []).map((g: any) => g.name);
 
         const allProxyNames = Object.keys(proxiesMap);
+        
+        // 提取订阅里的单节点
         const subscriptionProxies = allProxyNames.filter((name) => {
           const p = proxiesMap[name];
-          return p && !["Selector", "URLTest", "Fallback", "LoadBalance", "Direct", "Reject", "Compatible"].includes(p.type)
+          const isGroupType = ["Selector", "URLTest", "Fallback", "LoadBalance", "Direct", "Reject", "Compatible"].includes(p?.type);
+          return p && !isGroupType
             && !customProxyNames.includes(name)
             && !["GLOBAL", "DIRECT", "REJECT", "COMPATIBLE"].includes(name);
+        }).map(name => {
+          const hist = proxiesMap[name]?.history || [];
+          const lastDelay = hist.length > 0 ? hist[hist.length - 1]?.delay : 0;
+          return {
+            name,
+            type: proxiesMap[name]?.type,
+            delay: lastDelay,
+          };
+        });
+
+        // 提取订阅里的原生策略组 (排除自建组和特殊内置组)
+        const subscriptionGroups = allProxyNames.filter((name) => {
+          const p = proxiesMap[name];
+          const isGroupType = ["Selector", "URLTest", "Fallback", "LoadBalance"].includes(p?.type);
+          return isGroupType && !customGroupNames.includes(name) && !["GLOBAL"].includes(name);
         }).map(name => ({
           name,
           type: proxiesMap[name]?.type,
-          history: proxiesMap[name]?.history || [],
+          now: proxiesMap[name]?.now,
+          all: proxiesMap[name]?.all || [],
         }));
 
         return Response.json({
           customProxies: customData.proxies || [],
           subscriptionProxies,
-          allGroups: (customData.groups || []).map((g: any) => g.name),
+          subscriptionGroups,
+          customGroups: customData.groups || [],
         }, { headers: { "Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache" } });
       } catch (err) {
+        return Response.json({ error: String(err) }, { status: 500 });
+      }
+    }
+
+    // 批量测速接口
+    if (url.pathname === "/api/test-delay" && req.method === "POST") {
+      try {
+        const { proxies } = await req.json();
+        if (!Array.isArray(proxies) || proxies.length === 0) {
+          return Response.json({ results: {} }, { headers: { "Access-Control-Allow-Origin": "*" } });
+        }
+
+        const results: Record<string, number> = {};
+        const testUrl = "http://www.gstatic.com/generate_204";
+        const timeout = 5000;
+
+        // 并发测试延迟（最多限制 20 并发）
+        const testSingle = async (proxyName: string) => {
+          try {
+            const encoded = encodeURIComponent(proxyName);
+            const res = await fetch(`${BACKEND}/proxies/${encoded}/delay?timeout=${timeout}&url=${encodeURIComponent(testUrl)}`, {
+              headers: { "Authorization": `Bearer ${SECRET}` },
+            });
+            if (res.ok) {
+              const data: any = await res.json();
+              results[proxyName] = data.delay || 0;
+            } else {
+              results[proxyName] = -1; // 超时或错误
+            }
+          } catch {
+            results[proxyName] = -1;
+          }
+        };
+
+        const batchSize = 20;
+        for (let i = 0; i < proxies.length; i += batchSize) {
+          const chunk = proxies.slice(i, i + batchSize);
+          await Promise.all(chunk.map(testSingle));
+        }
+
+        return Response.json({ success: true, results }, {
+          headers: { "Access-Control-Allow-Origin": "*" },
+        });
+      } catch (err: any) {
         return Response.json({ error: String(err) }, { status: 500 });
       }
     }
@@ -337,16 +401,31 @@ const server = serve<WsData>({
       return new Response(indexFile);
     }
 
-    // 6. Serve Custom Workbench on / and /custom
+    // 6. Serve SolidJS SPA from dist/ or public/
     let pathname = decodeURIComponent(url.pathname);
-    let targetPath = path.join(PUBLIC_DIR, pathname === "/" || pathname === "/custom" ? "index.html" : pathname);
-    let file = Bun.file(targetPath);
-    if (await file.exists()) {
-      return new Response(file, { headers: { "Cache-Control": "no-cache" } });
+    if (pathname === "/" || pathname === "/custom") pathname = "/index.html";
+    
+    // Check dist first (Vite output)
+    let distPath = path.join(DIST_DIR, pathname);
+    let distFile = Bun.file(distPath);
+    if (await distFile.exists()) {
+      return new Response(distFile, { headers: { "Cache-Control": "no-cache" } });
     }
 
-    let indexFile = Bun.file(path.join(PUBLIC_DIR, "index.html"));
-    return new Response(indexFile, { headers: { "Cache-Control": "no-cache" } });
+    // Fallback to dist/index.html for SPA routes
+    let distIndex = Bun.file(path.join(DIST_DIR, "index.html"));
+    if (await distIndex.exists()) {
+      return new Response(distIndex, { headers: { "Cache-Control": "no-cache" } });
+    }
+
+    // Fallback to public/
+    let publicPath = path.join(CODE_DIR, "public", pathname);
+    let publicFile = Bun.file(publicPath);
+    if (await publicFile.exists()) {
+      return new Response(publicFile, { headers: { "Cache-Control": "no-cache" } });
+    }
+
+    return new Response(Bun.file(path.join(CODE_DIR, "public", "index.html")), { headers: { "Cache-Control": "no-cache" } });
   },
   websocket: {
     open(ws) {
