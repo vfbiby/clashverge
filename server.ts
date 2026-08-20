@@ -171,6 +171,21 @@ const server = serve<WsData>({
   async fetch(req, server) {
     const url = new URL(req.url);
 
+    // 0. 注销并清除 Metacubexd 旧 ServiceWorker 缓存
+    if (url.pathname === "/sw.js") {
+      return new Response(`
+        self.addEventListener('install', () => self.skipWaiting());
+        self.addEventListener('activate', () => {
+          self.registration.unregister();
+          self.clients.matchAll({ type: 'window' }).then(clients => {
+            for (const client of clients) client.navigate(client.url);
+          });
+        });
+      `, {
+        headers: { "Content-Type": "application/javascript", "Cache-Control": "no-cache" }
+      });
+    }
+
     // 1. WebSocket Upgrade
     if (req.headers.get("upgrade")?.toLowerCase() === "websocket") {
       const authHeader = req.headers.get("authorization")?.replace("Bearer ", "");
@@ -202,7 +217,7 @@ const server = serve<WsData>({
     if (url.pathname === "/api/custom-config" && req.method === "GET") {
       const data = loadCustomConfig();
       return Response.json(data, {
-        headers: { "Access-Control-Allow-Origin": "*" },
+        headers: { "Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache" },
       });
     }
 
@@ -260,7 +275,7 @@ const server = serve<WsData>({
           customProxies: customData.proxies || [],
           subscriptionProxies,
           allGroups: (customData.groups || []).map((g: any) => g.name),
-        }, { headers: { "Access-Control-Allow-Origin": "*" } });
+        }, { headers: { "Access-Control-Allow-Origin": "*", "Cache-Control": "no-cache" } });
       } catch (err) {
         return Response.json({ error: String(err) }, { status: 500 });
       }
@@ -310,7 +325,7 @@ const server = serve<WsData>({
     }
 
     // 5. Serve Metacubexd on /dashboard/*
-    if (url.pathname.startsWith("/dashboard") || url.pathname.startsWith("/_nuxt") || url.pathname.startsWith("/_fonts") || url.pathname === "/favicon.ico") {
+    if (url.pathname.startsWith("/dashboard") || url.pathname.startsWith("/_nuxt") || url.pathname.startsWith("/_fonts")) {
       let relativePath = url.pathname.replace("/dashboard", "");
       if (!relativePath || relativePath === "/") relativePath = "/index.html";
       let targetPath = path.join(METACUBEXD_DIR, decodeURIComponent(relativePath));
@@ -322,16 +337,16 @@ const server = serve<WsData>({
       return new Response(indexFile);
     }
 
-    // 6. Serve Custom Workbench on /
+    // 6. Serve Custom Workbench on / and /custom
     let pathname = decodeURIComponent(url.pathname);
-    let targetPath = path.join(PUBLIC_DIR, pathname === "/" ? "index.html" : pathname);
+    let targetPath = path.join(PUBLIC_DIR, pathname === "/" || pathname === "/custom" ? "index.html" : pathname);
     let file = Bun.file(targetPath);
     if (await file.exists()) {
-      return new Response(file);
+      return new Response(file, { headers: { "Cache-Control": "no-cache" } });
     }
 
     let indexFile = Bun.file(path.join(PUBLIC_DIR, "index.html"));
-    return new Response(indexFile);
+    return new Response(indexFile, { headers: { "Cache-Control": "no-cache" } });
   },
   websocket: {
     open(ws) {
