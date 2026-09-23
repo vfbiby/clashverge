@@ -88,7 +88,7 @@ function main(config, profileName) {
   "DOMAIN-SUFFIX,cdn-apple.com,DIRECT",
   "DOMAIN-SUFFIX,node10.de5.net,Custom",
   "DOMAIN-SUFFIX,muskzhang.ccwu.cc,Custom",
-  "DOMAIN-SUFFIX,deepseek.com,CustomDirect",
+  "DOMAIN-SUFFIX,deepseek.com,DIRECT",
   "DOMAIN-SUFFIX,qianwenai.com,CustomDirect",
   "DOMAIN-SUFFIX,volces.com,CustomDirect",
   "DOMAIN-SUFFIX,bygcloud.com,Custom",

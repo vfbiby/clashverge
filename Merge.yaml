@@ -14,9 +14,7 @@ dns:
   default-nameserver:
     - 223.5.5.5
     - 119.29.29.29
-  # DNS 查询按分流规则走：国外 DoH 的查询自动走代理隧道出去（不泄露、可达）
   respect-rules: true
-  # 用于解析代理服务器域名 / 走直连的 DNS 查询
   proxy-server-nameserver:
     - 223.5.5.5
     - 119.29.29.29
@@ -26,8 +24,6 @@ dns:
     geosite:cn:
       - https://dns.alicdn.com/dns-query
       - https://doh.pub/dns-query
-    # DIRECT 域名的国内解析策略由 Script.js 根据分流规则自动生成
-  # 默认 nameserver：国外 DoH（respect-rules 生效后其查询走代理）
   nameserver:
     - https://1.1.1.1/dns-query
     - https://8.8.8.8/dns-query
