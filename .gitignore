@@ -19,5 +19,3 @@ node_modules/
 MonetaProxy-Windows/*.zip
 MonetaProxy-Windows/*.7z
 
-# 本地配置快照（不入库）
-custom-config.yaml
