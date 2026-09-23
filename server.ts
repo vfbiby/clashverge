@@ -59,6 +59,20 @@ function saveAndSyncConfig(configData: { base: any; proxies: any[]; groups: any[
     )
   ];
 
+  // 4. 自动为 DIRECT/CustomDirect 规则的域名生成国内 DNS 解析策略
+  //    （直连域名必须用国内 DNS 解析，否则国外 DoH 不可达会导致直连全部失败）
+  const DIRECT_DNS = ["223.5.5.5", "119.29.29.29"];
+  if (!config.dns || typeof config.dns !== "object") config.dns = {};
+  if (!config.dns["nameserver-policy"] || typeof config.dns["nameserver-policy"] !== "object") {
+    config.dns["nameserver-policy"] = {};
+  }
+  priorityRules.forEach((rule) => {
+    const [type, value, target] = rule.split(",");
+    if (target !== "DIRECT" && target !== "CustomDirect") return;
+    if (type === "DOMAIN-SUFFIX") config.dns["nameserver-policy"]["+." + value] = DIRECT_DNS;
+    else if (type === "DOMAIN") config.dns["nameserver-policy"][value] = DIRECT_DNS;
+  });
+
   return config;
 }
 `;
@@ -101,6 +115,19 @@ ${YAML.stringify(configData.base || {})}
           (rule: string) => !priorityRules.some((r: string) => r.trim().toLowerCase() === rule.trim().toLowerCase())
         )
       ];
+
+      // 注入 DIRECT/CustomDirect 域名的国内 DNS 解析策略（与 Script.js 逻辑保持一致）
+      const DIRECT_DNS = ["223.5.5.5", "119.29.29.29"];
+      if (!vergeConfig.dns || typeof vergeConfig.dns !== "object") vergeConfig.dns = {};
+      if (!vergeConfig.dns["nameserver-policy"] || typeof vergeConfig.dns["nameserver-policy"] !== "object") {
+        vergeConfig.dns["nameserver-policy"] = {};
+      }
+      (configData.rules || []).forEach((rule: string) => {
+        const [type, value, target] = rule.split(",");
+        if (target !== "DIRECT" && target !== "CustomDirect") return;
+        if (type === "DOMAIN-SUFFIX") vergeConfig.dns["nameserver-policy"]["+." + value] = DIRECT_DNS;
+        else if (type === "DOMAIN") vergeConfig.dns["nameserver-policy"][value] = DIRECT_DNS;
+      });
 
       fs.writeFileSync(VERGE_CONFIG_PATH, YAML.stringify(vergeConfig), "utf-8");
     }
