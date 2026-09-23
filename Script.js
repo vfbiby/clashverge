@@ -54,7 +54,7 @@ function main(config, profileName) {
     "proxies": [
       "🇺🇸 USA_Los_LAX-DC2 xtls-reality",
       "anytls-8443",
-      "🚀 节点选择"
+      "Node10"
     ]
   },
   {
@@ -62,7 +62,9 @@ function main(config, profileName) {
     "type": "select",
     "proxies": [
       "🇺🇸 USA_Los_LAX-DC2 xtls-reality",
-      "anytls-8443"
+      "anytls-8443",
+      "YepFast-椰皮加速",
+      "Node10"
     ]
   },
   {
@@ -79,6 +81,11 @@ function main(config, profileName) {
 
   // 3. 注入自定义分流规则（置顶优先匹配）
   const priorityRules = [
+  "DOMAIN-SUFFIX,waxueshe.com,DIRECT",
+  "DOMAIN-SUFFIX,ovhcloud.com,Custom",
+  "DOMAIN-SUFFIX,mtguanmo.com,Custom",
+  "DOMAIN-SUFFIX,mtsearch.cc,Custom",
+  "DOMAIN-SUFFIX,cdn-apple.com,DIRECT",
   "DOMAIN-SUFFIX,node10.de5.net,Custom",
   "DOMAIN-SUFFIX,muskzhang.ccwu.cc,Custom",
   "DOMAIN-SUFFIX,deepseek.com,CustomDirect",
@@ -122,6 +129,20 @@ function main(config, profileName) {
       (rule) => !priorityRules.some((r) => r.trim().toLowerCase() === rule.trim().toLowerCase())
     )
   ];
+
+  // 4. 自动为 DIRECT/CustomDirect 规则的域名生成国内 DNS 解析策略
+  //    （直连域名必须用国内 DNS 解析，否则国外 DoH 不可达会导致直连全部失败）
+  const DIRECT_DNS = ["223.5.5.5", "119.29.29.29"];
+  if (!config.dns || typeof config.dns !== "object") config.dns = {};
+  if (!config.dns["nameserver-policy"] || typeof config.dns["nameserver-policy"] !== "object") {
+    config.dns["nameserver-policy"] = {};
+  }
+  priorityRules.forEach((rule) => {
+    const [type, value, target] = rule.split(",");
+    if (target !== "DIRECT" && target !== "CustomDirect") return;
+    if (type === "DOMAIN-SUFFIX") config.dns["nameserver-policy"]["+." + value] = DIRECT_DNS;
+    else if (type === "DOMAIN") config.dns["nameserver-policy"][value] = DIRECT_DNS;
+  });
 
   return config;
 }
