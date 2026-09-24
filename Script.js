@@ -82,9 +82,9 @@ function main(config, profileName) {
   // 3. 注入自定义分流规则（置顶优先匹配）
   const priorityRules = [
   "DOMAIN-SUFFIX,waxueshe.com,DIRECT",
-  "DOMAIN-SUFFIX,ovhcloud.com,Custom",
-  "DOMAIN-SUFFIX,mtguanmo.com,Custom",
-  "DOMAIN-SUFFIX,mtsearch.cc,Custom",
+  "DOMAIN-SUFFIX,ovhcloud.com,DIRECT",
+  "DOMAIN-SUFFIX,mtguanmo.com,DIRECT",
+  "DOMAIN-SUFFIX,mtsearch.cc,DIRECT",
   "DOMAIN-SUFFIX,cdn-apple.com,DIRECT",
   "DOMAIN-SUFFIX,node10.de5.net,Custom",
   "DOMAIN-SUFFIX,muskzhang.ccwu.cc,Custom",
