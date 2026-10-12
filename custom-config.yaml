@@ -87,6 +87,7 @@ groups:
     proxies:
       - DIRECT
 rules:
+  - DOMAIN-SUFFIX,ovhcloud.com,Custom
   - DOMAIN-SUFFIX,waxueshe.com,DIRECT
   - DOMAIN-SUFFIX,ovhcloud.com,DIRECT
   - DOMAIN-SUFFIX,mtguanmo.com,DIRECT

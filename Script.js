@@ -81,6 +81,7 @@ function main(config, profileName) {
 
   // 3. 注入自定义分流规则（置顶优先匹配）
   const priorityRules = [
+  "DOMAIN-SUFFIX,ovhcloud.com,Custom",
   "DOMAIN-SUFFIX,waxueshe.com,DIRECT",
   "DOMAIN-SUFFIX,ovhcloud.com,DIRECT",
   "DOMAIN-SUFFIX,mtguanmo.com,DIRECT",
