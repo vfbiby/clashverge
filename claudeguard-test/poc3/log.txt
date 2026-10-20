@@ -1,0 +1,129 @@
+
+========== PHASE-0 预检 & 残留清理 & 环境勘察 ==========
+时间: 2026-10-20 21:02:23  内核: 26.7.1  用户: root (uid 0)
+>>> INFO: 端口 7892/1053/9095 空闲
+封禁 v4: 104.20.23.154 104.20.26.136 160.79.104.10 172.66.147.243 172.66.157.237 
+封禁 v6: 2606:4700:10::6814:179a 2606:4700:10::6814:1a88 2606:4700:10::ac42:93f3 2606:4700:10::ac42:9ded 2607:6bc0::10 
+
+========== STEP-2 pf 初始状态与备份 (P12/P13) ==========
+  No ALTQ support in kernel
+  ALTQ related functions disabled
+  Status: Disabled for 0 days 02:13:26          Debug: Urgent
+  
+  State Table                          Total             Rate
+    current entries                        0               
+    searches                            9027            1.1/s
+    inserts                                2            0.0/s
+    removals                               2            0.0/s
+  Counters
+    match                               8885            1.1/s
+    bad-offset                             0            0.0/s
+    fragment                               0            0.0/s
+    short                                  0            0.0/s
+    normalize                              0            0.0/s
+    memory                                 0            0.0/s
+    bad-timestamp                          0            0.0/s
+    congestion                             0            0.0/s
+    ip-option                              0            0.0/s
+    proto-cksum                            0            0.0/s
+    state-mismatch                         0            0.0/s
+    state-insert                           0            0.0/s
+    state-limit                            0            0.0/s
+    src-limit                              0            0.0/s
+    synproxy                               0            0.0/s
+    dummynet                               0            0.0/s
+    invalid-port                           0            0.0/s
+>>> INFO: 已备份 /etc/pf.conf -> pf.conf.orig
+--- 原规则集备份 (rules.before.txt) ---
+scrub-anchor "com.apple/*" all fragment reassemble
+anchor "com.apple/*" all
+
+========== STEP-3 启用 pf + 装规则前 sanity check ==========
+  No ALTQ support in kernel
+  ALTQ related functions disabled
+  pf enabled
+  Token : 9533956587456380070
+>>> PASS: 启用 pf 后直连 example.org => 200, 环境安全
+
+========== STEP-4 创建专属实验用户 _monetafw ==========
+>>> INFO: 已创建 _monetafw (uid=5011)
+uid=5011(_monetafw) gid=20(staff) groups=20(staff),12(everyone),61(localaccounts),701(com.apple.sharepoint.group.1),100(_lpoperator)
+--- 待装载规则 (test.rules) ---
+scrub-anchor "com.apple/*" all fragment reassemble
+anchor "com.apple/*" all
+block drop out inet proto tcp to { 104.20.23.154 104.20.26.136 160.79.104.10 172.66.147.243 172.66.157.237 }
+block drop out inet6 proto tcp to { 2606:4700:10::6814:179a 2606:4700:10::6814:1a88 2606:4700:10::ac42:93f3 2606:4700:10::ac42:9ded 2607:6bc0::10 }
+pass out inet proto tcp to { 104.20.23.154 104.20.26.136 160.79.104.10 172.66.147.243 172.66.157.237 } user _monetafw
+pass out inet6 proto tcp to { 2606:4700:10::6814:179a 2606:4700:10::6814:1a88 2606:4700:10::ac42:93f3 2606:4700:10::ac42:9ded 2607:6bc0::10 } user _monetafw
+
+========== PHASE-A 引擎启动 (_monetafw 身份) + 三端口就位 + 节点健康门 ==========
+>>> PASS: 引擎已启动: pid=43747 user=_monetafw
+--- 三端口 ---
+verge-mih 43747 _monetafw    6u  IPv4  0xa97916c9c079e09      0t0  TCP 127.0.0.1:9095 (LISTEN)
+verge-mih 43747 _monetafw    7u  IPv4 0xb466757c4cca7d9f      0t0  TCP 127.0.0.1:7892 (LISTEN)
+verge-mih 43747 _monetafw    9u  IPv4 0x1e9c6728e7e20ef4      0t0  TCP 127.0.0.1:1053 (LISTEN)
+>>> INFO: mixed=7892 dns=1053 ctl=9095 | 对照 pf: 引擎出网 uid=_monetafw 豁免, 其余进程同目标被拦
+pfctl: Use of -f option, could result in flushing of rules
+present in the main ruleset added by the system at startup.
+See /etc/pf.conf for further details.
+
+No ALTQ support in kernel
+ALTQ related functions disabled
+--- 实际生效规则 (rules.during.txt) 尾部 ---
+pass out inet proto tcp from any to 160.79.104.10 user = 5011 flags S/SA keep state
+pass out inet proto tcp from any to 172.66.147.243 user = 5011 flags S/SA keep state
+pass out inet proto tcp from any to 172.66.157.237 user = 5011 flags S/SA keep state
+pass out inet6 proto tcp from any to 2606:4700:10::6814:179a user = 5011 flags S/SA keep state
+pass out inet6 proto tcp from any to 2606:4700:10::6814:1a88 user = 5011 flags S/SA keep state
+pass out inet6 proto tcp from any to 2606:4700:10::ac42:93f3 user = 5011 flags S/SA keep state
+pass out inet6 proto tcp from any to 2606:4700:10::ac42:9ded user = 5011 flags S/SA keep state
+pass out inet6 proto tcp from any to 2607:6bc0::10 user = 5011 flags S/SA keep state
+  No ALTQ support in kernel
+  ALTQ related functions disabled
+  Status: Enabled for 0 days 00:00:01           Debug: Urgent
+  
+  State Table                          Total             Rate
+    current entries                        0               
+    searches                            9090         9090.0/s
+    inserts                                2            2.0/s
+    removals                               2            2.0/s
+  Counters
+    match                               8940         8940.0/s
+    bad-offset                             0            0.0/s
+    fragment                               0            0.0/s
+    short                                  0            0.0/s
+    normalize                              0            0.0/s
+    memory                                 0            0.0/s
+    bad-timestamp                          0            0.0/s
+    congestion                             0            0.0/s
+    ip-option                              0            0.0/s
+    proto-cksum                            0            0.0/s
+    state-mismatch                         0            0.0/s
+    state-insert                           0            0.0/s
+    state-limit                            0            0.0/s
+    src-limit                              0            0.0/s
+    synproxy                               0            0.0/s
+    dummynet                               0            0.0/s
+    invalid-port                           0            0.0/s
+./run-e2e.sh: line 289: FAIL_TO_INJECT�: unbound variable
+
+========== PHASE-D ROLLBACK (trap/正常收尾共用) ==========
+>>> INFO: 引擎清除: 残留 0 个
+  pfctl: Use of -f option, could result in flushing of rules
+  present in the main ruleset added by the system at startup.
+  See /etc/pf.conf for further details.
+  
+  No ALTQ support in kernel
+  ALTQ related functions disabled
+>>> INFO: pf 原规则集已恢复 (rules.before.txt)
+  No ALTQ support in kernel
+  ALTQ related functions disabled
+  pf disabled
+>>> INFO: pf 原本 Disabled, 已 pfctl -d 恢复
+>>> INFO: 实验用户 _monetafw 已删除
+>>> PASS: 端口 7892/1053/9095 全部释放
+>>> PASS: 网络验1 直连 example.org => 200 (拦截已解除)
+>>> PASS: 网络验2 用户代理 7890 => 200 (用户流量零损伤)
+>>> PASS: 网络验3 DNS 端口 1053 已释放
+
+========== ROLLBACK 完成 2026-10-20 21:02:28 ==========

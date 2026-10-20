@@ -1,0 +1,22 @@
+scrub-anchor "com.apple/*" all fragment reassemble
+anchor "com.apple/*" all
+block drop out inet proto tcp from any to 104.20.23.154
+block drop out inet proto tcp from any to 104.20.26.136
+block drop out inet proto tcp from any to 160.79.104.10
+block drop out inet proto tcp from any to 172.66.147.243
+block drop out inet proto tcp from any to 172.66.157.237
+block drop out inet6 proto tcp from any to 2606:4700:10::6814:179a
+block drop out inet6 proto tcp from any to 2606:4700:10::6814:1a88
+block drop out inet6 proto tcp from any to 2606:4700:10::ac42:93f3
+block drop out inet6 proto tcp from any to 2606:4700:10::ac42:9ded
+block drop out inet6 proto tcp from any to 2607:6bc0::10
+pass out inet proto tcp from any to 104.20.23.154 user = 5011 flags S/SA keep state
+pass out inet proto tcp from any to 104.20.26.136 user = 5011 flags S/SA keep state
+pass out inet proto tcp from any to 160.79.104.10 user = 5011 flags S/SA keep state
+pass out inet proto tcp from any to 172.66.147.243 user = 5011 flags S/SA keep state
+pass out inet proto tcp from any to 172.66.157.237 user = 5011 flags S/SA keep state
+pass out inet6 proto tcp from any to 2606:4700:10::6814:179a user = 5011 flags S/SA keep state
+pass out inet6 proto tcp from any to 2606:4700:10::6814:1a88 user = 5011 flags S/SA keep state
+pass out inet6 proto tcp from any to 2606:4700:10::ac42:93f3 user = 5011 flags S/SA keep state
+pass out inet6 proto tcp from any to 2606:4700:10::ac42:9ded user = 5011 flags S/SA keep state
+pass out inet6 proto tcp from any to 2607:6bc0::10 user = 5011 flags S/SA keep state

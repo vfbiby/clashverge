@@ -1,0 +1,53 @@
+# PoC-3 预验记录（全部由 zhangsike 普通用户态完成, 未用 sudo / root）
+# 日期: 2026-10-20 ~19:40–20:00 (+08:00)
+
+## P1. config.yaml 语法过检
+命令: "/Applications/Clash Verge.app/Contents/MacOS/verge-mihomo" -t -f config.yaml -d <临时work>
+输出: "configuration file .../poc3/config.yaml test is successful"
+
+## P2. 引擎三端口启动 (7892/1053/9095, 127.0.0.1)
+zhangsike 用户态启动成功, lsof LISTEN:
+  127.0.0.1:9095 (LISTEN) / 127.0.0.1:7892 (LISTEN) / 127.0.0.1:1053 (LISTEN)
+测毕 kill, lsof 复核退出码 1 (零残听)。
+
+## P3. REST API 实测 (路径/body/响应)
+GET  http://127.0.0.1:9095/proxies/ClaudeExit
+  → 200, body 含 "name":"ClaudeExit","now":"anytls-node","all":["anytls-node","dead","REJECT","DIRECT"],"type":"Selector"
+GET  http://127.0.0.1:9095/proxies/EdgeProbe
+  → 200, body 含 "now":"anytls-node","all":["anytls-node","dead"],"type":"Selector"
+PUT  http://127.0.0.1:9095/proxies/EdgeProbe  body {"name":"dead"}
+  → HTTP 204 (空 body); GET 复核 "now":"dead"
+PUT  http://127.0.0.1:9095/proxies/ClaudeExit body {"name":"REJECT"}
+  → HTTP 204; GET 复核 "now":"REJECT"
+PUT  .../proxies/ClaudeExit body {"name":"anytls-node"}
+  → HTTP 204; GET 复核 "now":"anytls-node"   (RELEASE 语义)
+PUT  .../proxies/EdgeProbe body {"name":"REJECT"}    (组内不存在)
+  → HTTP 404 {"message":"Resource not found"}  —— 看门不会踩到 (EdgeProbe 无 REJECT)
+PUT  .../proxies/EdgeProbe body {"name":"nope"}      (完全伪名)
+  → HTTP 404 {"message":"Resource not found"}
+
+## P4. REJECT 注入秒断计时 (PoC-2 T6 复验, 本轮实测)
+ClaudeExit=REJECT 状态下: curl -x http://127.0.0.1:7892 https://claude.ai
+  → code=000, elapsed 0.015s (≤0.2s 阈值达成; 判定2 的机器证)
+
+## P5. 死节点 (127.0.0.1:9) 探活失败形态
+EdgeProbe→dead 后: curl -x 7892 -m 4 https://example.org
+  → code=000, elapsed ≈3.6s (anytls 会话内 ~8 次重试拉长, P08)
+  → 引擎日志: "dial ... error: 127.0.0.1:9 connect error: dial tcp 127.0.0.1:9: connect: connection refused"
+探活超时 8s > 3.6s, 失败形态可控, 看门节奏 (15s 周期) 成立。
+
+## P6. 看门状态机转态模拟 (纯逻辑, pseq=000,000,200,200,000,000,200,200)
+既单向命中 INJECT-REJECT / RELEASE 各一次, 又在重循环里复用复测,
+计数器翻转正确, 无 flap、无双发。
+
+## P7. (关键新发现) 节点出口健康在本轮预验时已变坏
+实测时间线 (同一台 VPS 154.53.75.226, anytls:8450):
+  - TCP {0x8450 可连通 (nc ok)
+  - 引擎内 anytls 会话建立 "Update padding succeed" (debug 可见)
+  - 但经隧道到任何 HTTPS 目标在 TLS 握手被 RST: example.com / example.org / claude.ai / discord.com 全 000
+  - REST delay 测试 (GET /proxies/anytls-node/delay 各 URL) 全部失败
+  - 对照: 直接 (root 侧) https example.org 200, 引擎 DIRECT 云路径 200 —— 出口隧道层坏
+  - 且 PoC-2 当时 example.com 经隧道 = 200; 现在该域名经隧道也 000 (与 claude/discord 同病征)
+推断: 节点池当日已病 (不排除 server 侧或该 VPS IP 被更宽的场景拉黑)。
+处置 (已写进 run-e2e.sh): 加 "节点健康门" —— PHASE-A 先等探针 200 (最多 ~35s),
+拿不到 200 直接中止并回滚, 让所有者换健康节点后重跑, 避免带病实验得出假 FAIL。

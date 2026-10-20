@@ -1,0 +1,86 @@
+# PoC-3 端到端串联配置 (mihomo v1.19.32)
+# 基于 poc2/configs/config.yaml 修改，改动清单见 diff-README.md
+# 引擎约束: 用户态二次启动, 端口 7892(混合代理) / 1053(DNS) / 9095(控制API), 全部 127.0.0.1
+mixed-port: 7892
+allow-lan: false
+bind-address: '127.0.0.1'
+mode: rule
+log-level: info
+external-controller: 127.0.0.1:9095
+secret: ''
+
+profile:
+  store-selected: false
+  store-fake-ip: false
+
+dns:
+  enable: true
+  prefer-h3: false
+  listen: 127.0.0.1:1053
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  # 最小化白名单模式: 仅 claude 系域名进 fake-ip, 其余全部真实解析 (零侵入验证点)
+  fake-ip-filter:
+    - '+.claude.ai'
+    - '+.claude.com'
+    - '+.clau.de'
+    - '+.anthropic.com'
+    - '+.claudeusercontent.com'
+  fake-ip-filter-mode: whitelist
+  nameserver:
+    - 'udp://223.5.5.5'
+  default-nameserver:
+    - '223.5.5.5'
+
+proxies:
+  # 健康节点 (PoC-2 实测 anytls 隧道健康; vless reality 8451 被对端 RST 已剔除)
+  - name: anytls-node
+    type: anytls
+    server: 154.53.75.226
+    port: 8450
+    password: 7c62cf6b-1bb1-48f5-b308-761c09ac072e
+    sni: anytls6.node10.local
+    skip-cert-verify: true
+  # 死节点定义: 127.0.0.1:9 连接即刻被本地 RST (PoC-2 dead-a 同款)
+  - name: dead
+    type: socks5
+    server: 127.0.0.1
+    port: 9
+  # 直连扮演"健康出口": PoC-3 机械验证不依赖真实 relay 健康
+  # (2026-10-20 预验: relay 层今天已进一步恶化, example.org 经 anytls 也 TLS 握手即切;
+  #  看门探针/健康门改用 direct——引擎自身出网、uid=_monetafw、pf 豁免正是机械要验的对象)
+  - name: direct
+    type: direct
+
+proxy-groups:
+  # 专属出口: 看门状态机的操作对象 (REST PUT /proxies/ClaudeExit)
+  - name: ClaudeExit
+    type: select
+    proxies:
+      - anytls-node
+      - dead
+      - REJECT
+      - DIRECT
+  # 探活边缘: example.org → EdgeProbe, 看门探针专用 (select: direct / dead, 永不含 REJECT)
+  - name: EdgeProbe
+    type: select
+    proxies:
+      - direct
+      - dead
+
+rules:
+  # 探活边缘 (判定1 机械验证 alias + 看门真值探针)
+  # 预验实测(2026-10-20): example.com 经 anytls 出口在 TLS 握手被 RST(PoC-2 之后新出现),
+  # 故真值探针改用 example.org; example.com 规则/封堵仍保留作对照
+  - 'DOMAIN-SUFFIX,example.com,EdgeProbe'
+  - 'DOMAIN-SUFFIX,example.org,EdgeProbe'
+  # 置顶: claude 系域名唯一出口
+  - 'DOMAIN-SUFFIX,claude.ai,ClaudeExit'
+  - 'DOMAIN-SUFFIX,claude.com,ClaudeExit'
+  - 'DOMAIN-SUFFIX,clau.de,ClaudeExit'
+  - 'DOMAIN-SUFFIX,anthropic.com,ClaudeExit'
+  - 'DOMAIN-SUFFIX,claudeusercontent.com,ClaudeExit'
+  # 兜底: 万一 fake-ip 泄漏进直连路径也走 ClaudeExit
+  - 'IP-CIDR,198.18.0.0/16,ClaudeExit,no-resolve'
+  # 其余全部直连
+  - 'MATCH,DIRECT'
