@@ -1,6 +1,6 @@
 
 ========== PHASE-0 预检 & 残留清理 & 环境勘察 ==========
-时间: 2026-10-20 21:02:23  内核: 26.7.1  用户: root (uid 0)
+时间: 2026-10-20 21:55:38  内核: 26.7.1  用户: root (uid 0)
 >>> INFO: 端口 7892/1053/9095 空闲
 封禁 v4: 104.20.23.154 104.20.26.136 160.79.104.10 172.66.147.243 172.66.157.237 
 封禁 v6: 2606:4700:10::6814:179a 2606:4700:10::6814:1a88 2606:4700:10::ac42:93f3 2606:4700:10::ac42:9ded 2607:6bc0::10 
@@ -8,15 +8,15 @@
 ========== STEP-2 pf 初始状态与备份 (P12/P13) ==========
   No ALTQ support in kernel
   ALTQ related functions disabled
-  Status: Disabled for 0 days 02:13:26          Debug: Urgent
+  Status: Disabled for 0 days 00:39:50          Debug: Urgent
   
   State Table                          Total             Rate
     current entries                        0               
-    searches                            9027            1.1/s
-    inserts                                2            0.0/s
-    removals                               2            0.0/s
+    searches                          241786          101.2/s
+    inserts                                8            0.0/s
+    removals                               8            0.0/s
   Counters
-    match                               8885            1.1/s
+    match                             239167          100.1/s
     bad-offset                             0            0.0/s
     fragment                               0            0.0/s
     short                                  0            0.0/s
@@ -24,7 +24,7 @@
     memory                                 0            0.0/s
     bad-timestamp                          0            0.0/s
     congestion                             0            0.0/s
-    ip-option                              0            0.0/s
+    ip-option                              6            0.0/s
     proto-cksum                            0            0.0/s
     state-mismatch                         0            0.0/s
     state-insert                           0            0.0/s
@@ -42,7 +42,7 @@ anchor "com.apple/*" all
   No ALTQ support in kernel
   ALTQ related functions disabled
   pf enabled
-  Token : 9533956587456380070
+  Token : 14631318549951347895
 >>> PASS: 启用 pf 后直连 example.org => 200, 环境安全
 
 ========== STEP-4 创建专属实验用户 _monetafw ==========
@@ -57,11 +57,11 @@ pass out inet proto tcp to { 104.20.23.154 104.20.26.136 160.79.104.10 172.66.14
 pass out inet6 proto tcp to { 2606:4700:10::6814:179a 2606:4700:10::6814:1a88 2606:4700:10::ac42:93f3 2606:4700:10::ac42:9ded 2607:6bc0::10 } user _monetafw
 
 ========== PHASE-A 引擎启动 (_monetafw 身份) + 三端口就位 + 节点健康门 ==========
->>> PASS: 引擎已启动: pid=43747 user=_monetafw
+>>> PASS: 引擎已启动: pid=82295 user=_monetafw
 --- 三端口 ---
-verge-mih 43747 _monetafw    6u  IPv4  0xa97916c9c079e09      0t0  TCP 127.0.0.1:9095 (LISTEN)
-verge-mih 43747 _monetafw    7u  IPv4 0xb466757c4cca7d9f      0t0  TCP 127.0.0.1:7892 (LISTEN)
-verge-mih 43747 _monetafw    9u  IPv4 0x1e9c6728e7e20ef4      0t0  TCP 127.0.0.1:1053 (LISTEN)
+verge-mih 82295 _monetafw    6u  IPv4 0x3df8aeef560c2007      0t0  TCP 127.0.0.1:9095 (LISTEN)
+verge-mih 82295 _monetafw    7u  IPv4 0x386fdc1ac8839eaf      0t0  TCP 127.0.0.1:7892 (LISTEN)
+verge-mih 82295 _monetafw    8u  IPv4 0xe6884627187c7427      0t0  TCP 127.0.0.1:1053 (LISTEN)
 >>> INFO: mixed=7892 dns=1053 ctl=9095 | 对照 pf: 引擎出网 uid=_monetafw 豁免, 其余进程同目标被拦
 pfctl: Use of -f option, could result in flushing of rules
 present in the main ruleset added by the system at startup.
@@ -80,15 +80,15 @@ pass out inet6 proto tcp from any to 2606:4700:10::ac42:9ded user = 5011 flags S
 pass out inet6 proto tcp from any to 2607:6bc0::10 user = 5011 flags S/SA keep state
   No ALTQ support in kernel
   ALTQ related functions disabled
-  Status: Enabled for 0 days 00:00:01           Debug: Urgent
+  Status: Enabled for 0 days 00:00:02           Debug: Urgent
   
   State Table                          Total             Rate
     current entries                        0               
-    searches                            9090         9090.0/s
-    inserts                                2            2.0/s
-    removals                               2            2.0/s
+    searches                          242538       121269.0/s
+    inserts                                8            4.0/s
+    removals                               8            4.0/s
   Counters
-    match                               8940         8940.0/s
+    match                             239753       119876.5/s
     bad-offset                             0            0.0/s
     fragment                               0            0.0/s
     short                                  0            0.0/s
@@ -96,7 +96,7 @@ pass out inet6 proto tcp from any to 2607:6bc0::10 user = 5011 flags S/SA keep s
     memory                                 0            0.0/s
     bad-timestamp                          0            0.0/s
     congestion                             0            0.0/s
-    ip-option                              0            0.0/s
+    ip-option                              6            3.0/s
     proto-cksum                            0            0.0/s
     state-mismatch                         0            0.0/s
     state-insert                           0            0.0/s
@@ -105,10 +105,69 @@ pass out inet6 proto tcp from any to 2607:6bc0::10 user = 5011 flags S/SA keep s
     synproxy                               0            0.0/s
     dummynet                               0            0.0/s
     invalid-port                           0            0.0/s
-./run-e2e.sh: line 289: FAIL_TO_INJECT�: unbound variable
+>>> PASS: 看门已上线 (pid=82324, interval=15s, fail x 2 -> INJECT, ok x 2 -> RELEASE)
+>>> INFO: 节点健康门: EdgeProbe[direct] 探到 200 为止, 最多 ~40s...
+  gate try1: probe=200 claude_exit=anytls-node
+>>> PASS: 健康门通过: 看门探针已拿到 200
+
+========== PHASE-A (t0~45s) 正常态: 探活 200×3 + pf 拦直连 ==========
+>>> INFO: 观察 ~3 个看门周期...
+WATCH 2026-10-20 21:55:43 probe=200 claude_exit=anytls-node injected=0
+WATCH 2026-10-20 21:56:02 probe=200 claude_exit=anytls-node injected=0
+WATCH 2026-10-20 21:56:18 probe=200 claude_exit=anytls-node injected=0
+--- 看门观察 ---
+WATCH 2026-10-20 21:55:43 probe=200 claude_exit=anytls-node injected=0
+WATCH 2026-10-20 21:56:02 probe=200 claude_exit=anytls-node injected=0
+WATCH 2026-10-20 21:56:18 probe=200 claude_exit=anytls-node injected=0
+>>> PASS: PHASE-A: ClaudeExit=anytls-node (未误注入)
+>>> PASS: PHASE-A 探活: 最近 3 周期 probe=200 ×3
+>>> INFO: 判定1: 直连被封（pf block 静默黑洞）
+WATCH 2026-10-20 21:56:34 probe=200 claude_exit=anytls-node injected=0
+>>> PASS: 判定1 https://claude.ai => '000' exit=28 (被拦)
+>>> PASS: 判定1 https://example.com => '000' exit=28 (被拦)
+WATCH 2026-10-20 21:56:50 probe=200 claude_exit=anytls-node injected=0
+>>> PASS: 判定1 https://example.org => '000' exit=28 (被拦)
+>>> PASS: 判定1 --resolve 真实IP(160.79.104.10) 直连 claude.ai => '000' exit=28 (被拦)
+>>> PASS: 豁免复核: sudo -u _monetafw 直连 example.org => 200 (pass 规则生效)
+
+========== PHASE-B (t~45+): 杀节点 -> 看门注入 REJECT -> 判定2 ==========
+>>> INFO: REST ClaudeExit -> dead : HTTP 204
+>>> INFO: REST EdgeProbe  -> dead : HTTP 204
+>>> INFO: kill-point 2026-10-20 21:56:57
+WATCH 2026-10-20 21:57:07 probe=000 claude_exit=dead injected=0
+INJECT-REJECT 2026-10-20 21:57:26 probe=000 claude_exit=dead
+WATCH 2026-10-20 21:57:26 probe=000 claude_exit=REJECT injected=1
+>>> PASS: PHASE-B 看门已注入 REJECT (INJECT-REJECT @2026-10-20 21:57:26)
+  measured: code=000 elapsed=0.006067s (阈值≤0.2)
+>>> PASS: 判定2 三证齐: REST claude_exit=REJECT + INJECT 日志 + elapsed=0.006067s
+>>> INFO: 对齐 t~120 预算, 稍停...
+WATCH 2026-10-20 21:57:45 probe=000 claude_exit=REJECT injected=1
+
+========== PHASE-C (t~120+): 复活边缘 -> 看门解除 -> 判定3 ==========
+>>> INFO: REST EdgeProbe -> direct : HTTP 204
+WATCH 2026-10-20 21:58:00 probe=200 claude_exit=REJECT injected=1
+RELEASE 2026-10-20 21:58:16 probe=200 claude_exit=REJECT
+WATCH 2026-10-20 21:58:17 probe=200 claude_exit=anytls-node injected=0
+>>> PASS: PHASE-C 看门已解除 (RELEASE @2026-10-20 21:58:16, ClaudeExit=anytls-node)
+>>> PASS: 判定3a: example.org 经 7892 => 200 (复通)
+>>> INFO: 判定3b: 引擎日志 claude.ai 命中 ClaudeExit 行计数=2, 边缘握手 code=000 (如实记录)
+
+========== VERDICT (回滚在下方随 trap 执行) ==========
+看门事件线:
+  INJECT-REJECT 2026-10-20 21:57:26 probe=000 claude_exit=dead
+  RELEASE 2026-10-20 21:58:16 probe=200 claude_exit=REJECT
+
+J1 pf 拦直连 (含 --resolve 真实IP)                          => PASS
+J2 REJECT 注入三证 (REJECT@2026-10-20 21:57:26 elapsed=0.006067s)  => PASS
+J3 复通+解除 (RELEASE@2026-10-20 21:58:16; probe200=PASS)  => PASS
+>>> 结论: PoC-3 端到端串联 【PASS】 — pf 豁免喂引擎 + 域名裁判 + 看门注入/解除 全链路成立
+>>> INFO: 留存资产: log.txt / resolved-ips.txt / rules.before.txt / rules.during.txt / engine/mihomo.log / pf-initial-state.txt
 
 ========== PHASE-D ROLLBACK (trap/正常收尾共用) ==========
+>>> INFO: 看门循环 (82324) 已停
 >>> INFO: 引擎清除: 残留 0 个
+>>> INFO: 引擎日志已取证 engine-mihomo.log
+>>> INFO: 引擎工作目录已清理
   pfctl: Use of -f option, could result in flushing of rules
   present in the main ruleset added by the system at startup.
   See /etc/pf.conf for further details.
@@ -126,4 +185,23 @@ pass out inet6 proto tcp from any to 2607:6bc0::10 user = 5011 flags S/SA keep s
 >>> PASS: 网络验2 用户代理 7890 => 200 (用户流量零损伤)
 >>> PASS: 网络验3 DNS 端口 1053 已释放
 
-========== ROLLBACK 完成 2026-10-20 21:02:28 ==========
+========== ROLLBACK 完成 2026-10-20 21:58:25 ==========
+INJECT-REJECT 2026-10-20 21:58:32 probe=000 claude_exit=(control-lost)
+WATCH 2026-10-20 21:58:32 probe=000 claude_exit= injected=1
+WATCH 2026-10-20 21:58:47 probe=000 claude_exit= injected=1
+WATCH 2026-10-20 21:59:02 probe=000 claude_exit= injected=1
+WATCH 2026-10-20 21:59:17 probe=000 claude_exit= injected=1
+WATCH 2026-10-20 21:59:32 probe=000 claude_exit= injected=1
+WATCH 2026-10-20 21:59:47 probe=000 claude_exit= injected=1
+WATCH 2026-10-20 22:00:02 probe=000 claude_exit= injected=1
+WATCH 2026-10-20 22:00:17 probe=000 claude_exit= injected=1
+WATCH 2026-10-20 22:00:32 probe=000 claude_exit= injected=1
+WATCH 2026-10-20 22:00:47 probe=000 claude_exit= injected=1
+WATCH 2026-10-20 22:01:02 probe=000 claude_exit= injected=1
+WATCH 2026-10-20 22:01:17 probe=000 claude_exit= injected=1
+WATCH 2026-10-20 22:01:32 probe=000 claude_exit= injected=1
+WATCH 2026-10-20 22:01:47 probe=000 claude_exit= injected=1
+WATCH 2026-10-20 22:02:02 probe=000 claude_exit= injected=1
+WATCH 2026-10-20 22:02:17 probe=000 claude_exit= injected=1
+WATCH 2026-10-20 22:02:33 probe=000 claude_exit= injected=1
+WATCH 2026-10-20 22:02:48 probe=000 claude_exit= injected=1
