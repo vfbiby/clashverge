@@ -89,6 +89,9 @@ restore() {
   sleep 1
   for P in $(pgrep -u "$TESTUSER" -f verge-mihomo 2>/dev/null); do kill -9 "$P" 2>/dev/null; done
   note "引擎清除: 残留 $(pgrep -u "$TESTUSER" -f verge-mihomo 2>/dev/null | wc -l | tr -d ' ') 个"
+  # 引擎日志先取证 (uid 将随用户删除而不可读), 再清工作目录
+  if [ -s "$ENGINE_LOG" ]; then cp -f "$ENGINE_LOG" "engine-mihomo.log" 2>/dev/null && note "引擎日志已取证 engine-mihomo.log"; fi
+  rm -rf "$ENGINE_DIR"; note "引擎工作目录已清理"
   # 3) 恢复 pf 原规则集 + 原 enable 状态 (P12)
   if [ -s "$RULES_BACKUP" ]; then
     cat "$RULES_BACKUP" | pfctl -f - 2>&1 | sed 's/^/  /'
@@ -284,7 +287,11 @@ watch_loop() (
     printf 'WATCH %s probe=%s claude_exit=%s injected=%d\n' "$(ts)" "$CODE" "$(grp_now ClaudeExit)" "$WINJ"
     sleep "$WATCH_INTERVAL"
   done
-) &
+)
+
+# P16(bash 3.2 版本坑): 不能写 `watch_loop() (…) &` —— 3.2 会只把"函数定义"丢进后台
+# (生产即退的哑进程), 函数体永远不执行; 必须显式"定义完再调用"。
+watch_loop &
 WATCH_PID=$!
 pass "看门已上线 (pid=$WATCH_PID, interval=${WATCH_INTERVAL}s, fail x ${FAIL_TO_INJECT} -> INJECT, ok x ${OK_TO_RELEASE} -> RELEASE)"
 
