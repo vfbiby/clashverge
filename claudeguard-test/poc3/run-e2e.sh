@@ -42,6 +42,8 @@ PF_WAS_ENABLED=0
 CREATED_USER=0
 WATCH_PID=""
 RESTORED=0
+STOPFILE="stop.guard"
+rm -f "$STOPFILE" 2>/dev/null   # 上轮残留防误触
 INJECT_TS="(未发生)"
 RELEASE_TS="(未发生)"
 M_EL="?"
@@ -80,10 +82,30 @@ restore() {
   [ "$RESTORED" = 1 ] && return
   RESTORED=1
   hr "PHASE-D ROLLBACK (trap/正常收尾共用)"
-  # 1) 看门子 shell
-  if [ -n "$WATCH_PID" ] && kill -0 "$WATCH_PID" 2>/dev/null; then
-    kill "$WATCH_PID" 2>/dev/null && note "看门循环 ($WATCH_PID) 已停"
+  # 1) 看门子 shell —— 验证式击杀 (P19: $! 可能指向中间态子壳, 必须"杀+验死", 不能只 kill 一次)
+  touch "$STOPFILE" 2>/dev/null                        # 停机文件: 看门下个周期自杀
+  if [ -n "${WATCH_PID:-}" ] && kill -0 "$WATCH_PID" 2>/dev/null; then
+    pkill -TERM -P "$WATCH_PID" 2>/dev/null            # 先收看门的子进程(如 sleep)
+    kill "$WATCH_PID" 2>/dev/null
+    _n=0
+    while kill -0 "$WATCH_PID" 2>/dev/null; do
+      _n=$((_n+1)); [ "$_n" -ge 10 ] && break
+      sleep 0.3
+    done
+    kill -0 "$WATCH_PID" 2>/dev/null && kill -9 "$WATCH_PID" 2>/dev/null
   fi
+  # 模式兜底: 清扫任何与我们脚本同参的本子树孤儿 (仅限本实验产物名, 绝不波及他人)
+  for Z in $(pgrep -f "bash \./run-e2e.sh" 2>/dev/null); do
+    [ "$Z" = "$$" ] && continue
+    ZP=$(ps -o ppid= -p "$Z" 2>/dev/null | tr -d ' ')
+    [ "$ZP" = "1" ] && kill -9 "$Z" 2>/dev/null && note "孤儿清扫: $Z (ppid=1) 已击杀"
+  done
+  for T in $(pgrep -f "tee ./log.txt" 2>/dev/null); do
+    TPAR=$(ps -o ppid= -p "$T" 2>/dev/null | tr -d ' ')
+    if [ "$TPAR" = "1" ]; then kill -TERM "$T" 2>/dev/null; sleep 0.5; kill -9 "$T" 2>/dev/null; note "孤儿 tee $T 已击杀"; fi
+  done
+  kill -0 "${WATCH_PID:-0}" 2>/dev/null 2>&1 || true
+  note "看门循环已停"
   # 2) 引擎进程 (以 _monetafw 身份运行的 mihomo)
   for P in $(pgrep -u "$TESTUSER" -f verge-mihomo 2>/dev/null); do kill "$P" 2>/dev/null; done
   sleep 1
@@ -148,6 +170,14 @@ if [ "$LEFTOVER" != "0" ]; then
   pkill -u "$TESTUSER" -f verge-mihomo 2>/dev/null
   sleep 1
 fi
+# 幂等清理: 前几轮跑机留下的孤儿 (ppid=1 的本脚本/tee 进程, P19) —— root 才能杀
+for Z in $(pgrep -f "bash \./run-e2e.sh" 2>/dev/null); do
+  [ "$Z" = "$$" ] && continue
+  [ "$(ps -o ppid= -p "$Z" 2>/dev/null | tr -d ' ')" = "1" ] && kill -9 "$Z" 2>/dev/null && note "孤儿 bash $Z 已击杀"
+done
+for T in $(pgrep -f "tee ./log.txt" 2>/dev/null); do
+  [ "$(ps -o ppid= -p "$T" 2>/dev/null | tr -d ' ')" = "1" ] && kill -9 "$T" 2>/dev/null && note "孤儿 tee $T 已击杀"
+done
 # 三端口必须空闲, 否则中止（绝不杀陌生占用者）
 for PORT in 7892 1053 9095; do
   OCC=$(lsof -nP -iTCP:$PORT -sTCP:LISTEN 2>/dev/null | tail -n +2)
@@ -266,6 +296,7 @@ pfctl -si 2>&1 | sed 's/^/  /'
 watch_loop() (
   WFAIL=0; WOK=0; WINJ=0
   while :; do
+    [ -f "$STOPFILE" ] && exit 0    # P19: 停机文件先行，双保险
     CODE=$(iprobe)
     NOW=$(grp_now ClaudeExit)
     [ -z "$NOW" ] && NOW="(control-lost)"
@@ -420,4 +451,7 @@ note "留存资产: log.txt / resolved-ips.txt / rules.before.txt / rules.during
 
 # 正常收尾: restore 实体执行 (trap EXIT 幂等保护已置位, 不会跑两遍)
 restore
+rm -f "$STOPFILE"
+# P19/P20: 退场前斩断管道依赖, 防 bash3.2 在 tee/prosub 残留 fd 上滞留
+exec >/dev/null 2>&1 </dev/null
 exit 0
