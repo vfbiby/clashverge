@@ -1,0 +1,82 @@
+# PoC-2 域名裁判层配置 (mihomo v1.19.32)
+# 引擎约束: 用户态二次启动, 端口 7892(混合代理) / 1053(DNS) / 9095(控制API), 全部 127.0.0.1
+mixed-port: 7892
+allow-lan: false
+bind-address: '127.0.0.1'
+mode: rule
+log-level: info
+external-controller: 127.0.0.1:9095
+secret: ''
+
+profile:
+  store-selected: false
+  store-fake-ip: false
+
+dns:
+  enable: true
+  prefer-h3: false
+  listen: 127.0.0.1:1053
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  # 最小化白名单模式: 仅 claude 系域名进 fake-ip, 其余全部真实解析 (零侵入验证点)
+  fake-ip-filter:
+    - '+.claude.ai'
+    - '+.claude.com'
+    - '+.clau.de'
+    - '+.anthropic.com'
+    - '+.claudeusercontent.com'
+  fake-ip-filter-mode: whitelist
+  nameserver:
+    - 'udp://223.5.5.5'
+  default-nameserver:
+    - '223.5.5.5'
+
+proxies:
+  - name: anytls-node
+    type: anytls
+    server: 154.53.75.226
+    port: 8450
+    password: 7c62cf6b-1bb1-48f5-b308-761c09ac072e
+    sni: anytls6.node10.local
+    skip-cert-verify: true
+  - name: vless-node
+    type: vless
+    server: 154.53.75.226
+    port: 8451
+    uuid: 7c62cf6b-1bb1-48f5-b308-761c09ac072e
+    flow: xtls-rprx-vision
+    tls: true
+    servername: monetamarkets.com
+    client-fingerprint: chrome
+    reality-opts:
+      public-key: N7Y2HOcc7Ygvu7XJ6PipAGyiW2orZKkEL2eoALhyRDU
+      short-id: 1a2b3c4d
+
+proxy-groups:
+  - name: ClaudeExit
+    type: select
+    proxies:
+      - anytls-node
+      - vless-node
+      - REJECT
+      - DIRECT
+  - name: Probe
+    type: url-test
+    proxies:
+      - anytls-node
+      - vless-node
+    url: 'https://www.gstatic.com/generate_204'
+    interval: 30
+    tolerance: 50
+
+rules:
+  # 置顶: claude 系域名唯一出口
+  - 'DOMAIN-SUFFIX,claude.ai,ClaudeExit'
+  - 'DOMAIN-SUFFIX,claude.com,ClaudeExit'
+  - 'DOMAIN-SUFFIX,clau.de,ClaudeExit'
+  - 'DOMAIN-SUFFIX,anthropic.com,ClaudeExit'
+  - 'DOMAIN-SUFFIX,claudeusercontent.com,ClaudeExit'
+  # 兜底: 万一 fake-ip 泄漏进直连路径也走 ClaudeExit
+  - 'IP-CIDR,198.18.0.0/16,ClaudeExit,no-resolve'
+  # 其余全部直连
+  - 'MATCH,DIRECT'

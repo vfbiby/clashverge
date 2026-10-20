@@ -1,0 +1,6 @@
+=== T5 dead-c (198.51.100.1:9 black-hole) started at 19:12:34 ===
+t+0s anytls="alive":true vless="alive":true
+t+1s anytls="alive":true vless="alive":true
+t+2s anytls="alive":true vless="alive":true
+t+3s anytls="alive":false vless="alive":false
+verdict-confirmation elapsed=3s

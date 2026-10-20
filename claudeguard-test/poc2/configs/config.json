@@ -1,0 +1,131 @@
+{
+  "log": {
+    "level": "info",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "type": "fakeip",
+        "tag": "dns-fakeip",
+        "inet4_range": "198.18.0.0/15",
+        "inet6_range": "fc00::/18"
+      },
+      {
+        "type": "udp",
+        "tag": "dns-direct",
+        "server": "223.5.5.5"
+      }
+    ],
+    "rules": [
+      {
+        "domain_suffix": [
+          "claude.ai",
+          "claude.com",
+          "clau.de",
+          "anthropic.com",
+          "claudeusercontent.com"
+        ],
+        "server": "dns-fakeip"
+      }
+    ],
+    "final": "dns-direct",
+    "independent_cache": true
+  },
+  "inbounds": [
+    {
+      "type": "mixed",
+      "tag": "mixed-in",
+      "listen": "127.0.0.1",
+      "listen_port": 7892
+    },
+    {
+      "type": "dns",
+      "tag": "dns-in",
+      "listen": "127.0.0.1",
+      "listen_port": 1053
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "anytls",
+      "tag": "anytls-node",
+      "server": "154.53.75.226",
+      "server_port": 8450,
+      "password": "7c62cf6b-1bb1-48f5-b308-761c09ac072e",
+      "tls": {
+        "enabled": true,
+        "server_name": "anytls6.node10.local",
+        "insecure": true
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "vless-node",
+      "server": "154.53.75.226",
+      "server_port": 8451,
+      "uuid": "7c62cf6b-1bb1-48f5-b308-761c09ac072e",
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "monetamarkets.com",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "reality": {
+          "enabled": true,
+          "public_key": "N7Y2HOcc7Ygvu7XJ6PipAGyiW2orZKkEL2eoALhyRDU",
+          "short_id": "1a2b3c4d"
+        }
+      }
+    },
+    {
+      "type": "block",
+      "tag": "REJECT"
+    },
+    {
+      "type": "selector",
+      "tag": "ClaudeExit",
+      "outbounds": ["anytls-node", "vless-node", "REJECT", "DIRECT"],
+      "default": "anytls-node"
+    },
+    {
+      "type": "urltest",
+      "tag": "Probe",
+      "outbounds": ["anytls-node", "vless-node"],
+      "url": "https://www.gstatic.com/generate_204",
+      "interval": "30s",
+      "idle_timeout": "30s"
+    },
+    {
+      "type": "direct",
+      "tag": "DIRECT"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "domain_suffix": [
+          "claude.ai",
+          "claude.com",
+          "clau.de",
+          "anthropic.com",
+          "claudeusercontent.com"
+        ],
+        "outbound": "ClaudeExit"
+      },
+      {
+        "ip_cidr": ["198.18.0.0/15"],
+        "outbound": "ClaudeExit"
+      }
+    ],
+    "final": "DIRECT",
+    "default_domain_resolver": "dns-direct"
+  },
+  "experimental": {
+    "clash_api": {
+      "external_controller": "127.0.0.1:9095"
+    }
+  }
+}

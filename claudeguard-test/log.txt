@@ -1,0 +1,159 @@
+
+========== STEP 0 环境 ==========
+时间: 2026-10-20 18:48:39
+内核: 26.7.1  当前用户: root (0)
+
+========== STEP 1 解析实验目标 IP (v4+v6) 并固化 ==========
+IPv4: 104.20.23.154
+172.66.147.243
+IPv6: 2606:4700:10::6814:179a
+2606:4700:10::ac42:93f3
+
+========== STEP 2 pf 初始状态与备份 ==========
+  No ALTQ support in kernel
+  ALTQ related functions disabled
+  Status: Disabled                              Debug: Urgent
+  
+  State Table                          Total             Rate
+    current entries                        0               
+    searches                               0            0.0/s
+    inserts                                0            0.0/s
+    removals                               0            0.0/s
+  Counters
+    match                                  0            0.0/s
+    bad-offset                             0            0.0/s
+    fragment                               0            0.0/s
+    short                                  0            0.0/s
+    normalize                              0            0.0/s
+    memory                                 0            0.0/s
+    bad-timestamp                          0            0.0/s
+    congestion                             0            0.0/s
+    ip-option                              0            0.0/s
+    proto-cksum                            0            0.0/s
+    state-mismatch                         0            0.0/s
+    state-insert                           0            0.0/s
+    state-limit                            0            0.0/s
+    src-limit                              0            0.0/s
+    synproxy                               0            0.0/s
+    dummynet                               0            0.0/s
+    invalid-port                           0            0.0/s
+PF_WAS_ENABLED=0  (记录于 pf-initial-state.txt)
+>>> INFO: 已备份 /etc/pf.conf -> pf.conf.orig
+--- 原规则集备份 (rules.before.txt) ---
+scrub-anchor "com.apple/*" all fragment reassemble
+anchor "com.apple/*" all
+
+========== STEP 3 启用 pf（若原本 Disabled） ==========
+No ALTQ support in kernel
+ALTQ related functions disabled
+pf enabled
+Token : 8557985932961854759
+>>> PASS: 启用 pf 后直连 example.com => 200，环境安全，继续
+
+
+========== STEP 4 创建专属实验用户 _monetafw ==========
+<dscl_cmd> DS Error: -14165 (eDSAuthPasswordQualityCheckFailed)
+>>> INFO: 已创建 _monetafw (uid=5011), 无登录密码
+uid=5011(_monetafw) gid=20(staff) groups=20(staff),12(everyone),61(localaccounts),701(com.apple.sharepoint.group.1),100(_lpoperator)
+
+========== STEP 5 装载规则：block 全体出站 -> pass 豁免 _monetafw ==========
+--- 待装载规则 (test.rules) ---
+scrub-anchor "com.apple/*" all fragment reassemble
+anchor "com.apple/*" all
+block drop out inet proto tcp to { 104.20.23.154 172.66.147.243 }
+block drop out inet6 proto tcp to { 2606:4700:10::6814:179a 2606:4700:10::ac42:93f3 }
+pass out inet proto tcp to { 104.20.23.154 172.66.147.243 } user _monetafw
+pass out inet6 proto tcp to { 2606:4700:10::6814:179a 2606:4700:10::ac42:93f3 } user _monetafw
+pfctl: Use of -f option, could result in flushing of rules
+present in the main ruleset added by the system at startup.
+See /etc/pf.conf for further details.
+
+No ALTQ support in kernel
+ALTQ related functions disabled
+No ALTQ support in kernel
+ALTQ related functions disabled
+--- 实际生效规则 (rules.during.txt) ---
+scrub-anchor "com.apple/*" all fragment reassemble
+anchor "com.apple/*" all
+block drop out inet proto tcp from any to 104.20.23.154
+block drop out inet proto tcp from any to 172.66.147.243
+block drop out inet6 proto tcp from any to 2606:4700:10::6814:179a
+block drop out inet6 proto tcp from any to 2606:4700:10::ac42:93f3
+pass out inet proto tcp from any to 104.20.23.154 user = 5011 flags S/SA keep state
+pass out inet proto tcp from any to 172.66.147.243 user = 5011 flags S/SA keep state
+pass out inet6 proto tcp from any to 2606:4700:10::6814:179a user = 5011 flags S/SA keep state
+pass out inet6 proto tcp from any to 2606:4700:10::ac42:93f3 user = 5011 flags S/SA keep state
+  No ALTQ support in kernel
+  ALTQ related functions disabled
+  Status: Enabled for 0 days 00:00:01           Debug: Urgent
+  
+  State Table                          Total             Rate
+    current entries                        0               
+    searches                             738          738.0/s
+    inserts                                0            0.0/s
+    removals                               0            0.0/s
+  Counters
+    match                                738          738.0/s
+    bad-offset                             0            0.0/s
+    fragment                               0            0.0/s
+    short                                  0            0.0/s
+    normalize                              0            0.0/s
+    memory                                 0            0.0/s
+    bad-timestamp                          0            0.0/s
+    congestion                             0            0.0/s
+    ip-option                              0            0.0/s
+    proto-cksum                            0            0.0/s
+    state-mismatch                         0            0.0/s
+    state-insert                           0            0.0/s
+    state-limit                            0            0.0/s
+    src-limit                              0            0.0/s
+    synproxy                               0            0.0/s
+    dummynet                               0            0.0/s
+    invalid-port                           0            0.0/s
+
+========== TEST 1  普通用户直连 example.com (预期: 失败) ==========
+$ env -u http_proxy -u https_proxy curl -sS -m 6 -o /dev/null -w %{http_code} https://example.com
+输出: http_code='000' exit=28
+>>> PASS: 普通用户直连被 pf 拦截（符合预期）
+
+
+========== TEST 2  普通用户经 Clash 代理 127.0.0.1:7890 (预期: 也失败，代理出站同被拦) ==========
+$ env http_proxy=http://127.0.0.1:7890 https_proxy=http://127.0.0.1:7890 curl -sS -m 10 -o /dev/null -w %{http_code} https://example.com
+输出: '200' exit=0
+>>> FAIL: 走代理居然拿到 200，mihomo 进程匹配到了豁免规则？
+
+
+========== TEST 3  豁免用户 _monetafw 直连 example.com (预期: 200 —— 本次实验核心验证点) ==========
+$ sudo -u _monetafw env -u http_proxy ... curl -sS -m 8 -o /dev/null -w %{http_code} https://example.com
+输出: '200' exit=0
+>>> PASS: 豁免用户直连 => 200，user 豁免机制成立！
+
+
+========== TEST 4  移除豁免后复测普通用户 (预期: 仍失败，豁免只对单一主体生效) ==========
+$ env -u http_proxy -u https_proxy curl -sS -m 6 -o /dev/null -w %{http_code} https://example.com
+输出: http_code='000' exit=28
+>>> PASS: 普通用户仍被拦截（符合预期，豁免粒度为单一 user）
+
+
+========== 结果汇总（自动回滚在下方随 EXIT trap 执行） ==========
+TEST1 普通用户直连被拦   预期:失败  实测:'000' exit=28   => PASS
+TEST2 代理出站被拦       预期:失败  实测:'200' exit=0  => FAIL
+TEST3 豁免用户直连       预期:200   实测:'200' exit=0  => PASS
+TEST4 普通用户仍被拦     预期:失败  实测:exit=28  => PASS
+>>> 结论: 机制【不成立/部分成立】，请把 log.txt 交给复核
+
+========== ROLLBACK 回滚 ==========
+  pfctl: Use of -f option, could result in flushing of rules
+  present in the main ruleset added by the system at startup.
+  See /etc/pf.conf for further details.
+  
+  No ALTQ support in kernel
+  ALTQ related functions disabled
+  No ALTQ support in kernel
+  ALTQ related functions disabled
+  pf disabled
+>>> INFO: pf 原本为 Disabled，已执行 pfctl -d 恢复
+>>> INFO: 实验用户 _monetafw 已删除
+>>> INFO: 回滚后直连 example.com => 200，网络已恢复正常
+
+========== 回滚完成 ==========

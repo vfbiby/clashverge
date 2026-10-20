@@ -1,0 +1,10 @@
+scrub-anchor "com.apple/*" all fragment reassemble
+anchor "com.apple/*" all
+block drop out inet proto tcp from any to 104.20.23.154
+block drop out inet proto tcp from any to 172.66.147.243
+block drop out inet6 proto tcp from any to 2606:4700:10::6814:179a
+block drop out inet6 proto tcp from any to 2606:4700:10::ac42:93f3
+pass out inet proto tcp from any to 104.20.23.154 user = 5011 flags S/SA keep state
+pass out inet proto tcp from any to 172.66.147.243 user = 5011 flags S/SA keep state
+pass out inet6 proto tcp from any to 2606:4700:10::6814:179a user = 5011 flags S/SA keep state
+pass out inet6 proto tcp from any to 2606:4700:10::ac42:93f3 user = 5011 flags S/SA keep state
