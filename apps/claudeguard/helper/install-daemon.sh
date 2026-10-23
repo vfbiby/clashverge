@@ -30,6 +30,30 @@ cat > "$PLIST" <<EOF
 EOF
 chown root:wheel "$PLIST"; chmod 644 "$PLIST"
 
+# 引擎作为独立 launchd job（RunAtLoad 由 guardd 在武装时 bootstrap）
+ENGINE_PLIST=/Library/LaunchDaemons/com.claudeguard.engine.plist
+ENGINE_BIN="/Applications/Clash Verge.app/Contents/MacOS/verge-mihomo"
+cat > "$ENGINE_PLIST" <<EPLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.claudeguard.engine</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$ENGINE_BIN</string>
+    <string>-d</string><string>$DIR/engine</string>
+    <string>-f</string><string>$DIR/engine/config.yaml</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>$DIR/engine.log</string>
+  <key>StandardErrorPath</key><string>$DIR/engine.log</string>
+</dict>
+</plist>
+EPLIST
+chown root:wheel "$ENGINE_PLIST"; chmod 644 "$ENGINE_PLIST"
+
 launchctl bootout "system/$LABEL" >/dev/null 2>&1
 launchctl bootstrap system "$PLIST" 2>&1
 launchctl enable "system/$LABEL" >/dev/null 2>&1

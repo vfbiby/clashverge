@@ -173,13 +173,21 @@ fn resolve_domains(domains: &str, log: &Arc<Mutex<Shared>>) -> (Vec<String>, Vec
     (v4, v6)
 }
 
-fn write_control(mode: &str, ips4: &[String], ips6: &[String]) {
+fn write_control(mode: &str, ips4: &[String], ips6: &[String], domains: &str, upstream: &str) {
     let _ = std::fs::create_dir_all(STATE_DIR);
+    let doms = domains
+        .lines()
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
     let content = format!(
-        "mode={}\nips4={}\nips6={}\n",
+        "mode={}\nips4={}\nips6={}\ndomains={}\nupstream={}\n",
         mode,
         ips4.join(" "),
-        ips6.join(" ")
+        ips6.join(" "),
+        doms,
+        upstream
     );
     let _ = std::fs::write(CONTROL, content);
 }
@@ -267,10 +275,10 @@ impl App {
             let cfg = cfg.clone();
             let shared = shared.clone();
             std::thread::spawn(move || loop {
-                let mode = cfg
+                let (mode, domains, port) = cfg
                     .lock()
-                    .map(|c| c.mode)
-                    .unwrap_or(Mode::Auto);
+                    .map(|c| (c.mode, c.domains.clone(), c.proxy_port.clone()))
+                    .unwrap_or((Mode::Auto, String::new(), "7890".to_string()));
                 let (probe, ips4, ips6) = shared
                     .lock()
                     .map(|s| (s.probe_ok, s.ips4.clone(), s.ips6.clone()))
@@ -281,7 +289,8 @@ impl App {
                     Mode::Auto => probe != Some(true), // fail-closed
                 };
                 let armed_s = if armed { "armed" } else { "disarmed" };
-                write_control(armed_s, &ips4, &ips6);
+                let upstream = if probe == Some(true) { port.as_str() } else { "none" };
+                write_control(armed_s, &ips4, &ips6, &domains, upstream);
                 std::thread::sleep(Duration::from_secs(1));
             });
         }
@@ -370,9 +379,25 @@ impl App {
             let c = control
                 .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
                 .unwrap_or_else(|_| "执行失败".into());
+            let via_engine = Command::new("curl")
+                .args([
+                    "-x",
+                    "http://127.0.0.1:7893",
+                    "-m",
+                    "5",
+                    "-s",
+                    "-o",
+                    "/dev/null",
+                    "-w",
+                    "%{http_code} in %{time_total}s",
+                    "https://claude.ai",
+                ])
+                .output()
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+                .unwrap_or_else(|_| "执行失败".into());
             let text = format!(
-                "直连 claude.ai:  {}\n经代理 claude.ai: {}\n对照 example.org 直连: {}",
-                d, p, c
+                "直连 claude.ai:       {}\n经 Clash(7890):       {}\n经 ClaudeGuard(7893): {}\n对照 example.org 直连: {}",
+                d, p, via_engine, c
             );
             if let Ok(mut s) = shared.lock() {
                 s.self_test = Some(text.clone());
@@ -411,7 +436,7 @@ impl eframe::App for App {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("ClaudeGuard · Claude 出网管控");
             ui.label(
-                egui::RichText::new("PoC v0.1 — 自动/强制封禁 · pf 执行层 · 零 hosts 改动")
+                egui::RichText::new("v0.2 — 系统代理接管 + pf 直连封堵 · 自动/强制封禁 · 零 hosts 改动")
                     .weak()
                     .small(),
             );
@@ -480,6 +505,16 @@ impl eframe::App for App {
                     });
                     ui.end_row();
 
+                    ui.label("引擎/系统代理:");
+                    let eng = status_raw.contains("engine=running");
+                    let px = status_raw.contains("sysproxy=on");
+                    ui.label(format!(
+                        "引擎 {} · 系统代理 {}",
+                        if eng { "运行" } else { "停止" },
+                        if px { "已接管(7893)" } else { "未接管" }
+                    ));
+                    ui.end_row();
+
                     ui.label("守护回报:");
                     ui.label(if status_raw.is_empty() { "—".into() } else { status_raw });
                     ui.end_row();
@@ -542,8 +577,9 @@ impl eframe::App for App {
             ui.separator();
             ui.label(
                 egui::RichText::new(
-                    "v0.1 边界：pf 层只能封「直连」出口。若你的代理走远程出口（如 Clash 节点），\
-域名的真实连接发生在节点那一端，本层无法拦截——那是后续「域名平面」（内置引擎/DNS）的职责。",
+                    "v0.2 机制：武装时接管系统 HTTP/HTTPS 代理（127.0.0.1:7893），Claude 域在本机直接 REJECT，\
+其余流量链式转发到你的 Clash——浏览器等走系统代理的应用即使开着梯子也会被断。\
+仍留的缺口：应用自己硬编码代理指向 Clash（如 curl -x 7890）不经本引擎；直连则由 pf 兜底。",
                 )
                 .weak()
                 .small(),
