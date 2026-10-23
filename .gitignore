@@ -19,3 +19,8 @@ node_modules/
 MonetaProxy-Windows/*.zip
 MonetaProxy-Windows/*.7z
 
+
+# claudeguard 实验用引擎二进制（mihomo, ~55MB; 按 arch 从官方 release 下载）
+claudeguard-test/poc4/mihomo
+claudeguard-test/*/work/cache.db
+claudeguard-test/poc2/work/cache.db

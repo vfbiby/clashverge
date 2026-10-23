@@ -1,5 +1,15 @@
 # PoC-4（ROADMAP P1a）· TUN 窄通道系统级接管 —— 所有者手册
 
+## 引擎二进制（不在仓库里）
+
+`./mihomo` 是 linux-arm64 v1.19.32 的引擎副本（~55MB，已移出 git）。复现时按本机架构下载官方 release：
+
+```bash
+# 以 amd64 为例（arm64 换 release 文件名）；下载后核对 GitHub Release API 的 digest
+curl -L -o mihomo.gz https://github.com/MetaCubeX/mihomo/releases/download/v1.19.32/mihomo-linux-amd64-v1.19.32.gz
+gunzip -f mihomo.gz && chmod +x mihomo
+```
+
 ## 一条命令
 
 ```bash
