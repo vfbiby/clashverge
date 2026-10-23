@@ -1,0 +1,2 @@
+# 2026-10-24 01:42:17 service=Wi-Fi
+There aren't any DNS Servers set on Wi-Fi.

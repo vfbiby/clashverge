@@ -8,9 +8,7 @@
 
 ## P1 · 系统级接管两件（可与 P0 并行）
 
-1. **TUN 窄通道接管**：系统 DNS 指向引擎 + utun 窄路由（198.18.0.0/16），验证"不走代理端口的应用"（裸 `env -u proxy curl https://claude.ai`）也被域名裁判接管——断或走专属通道。
-   验收：不设 proxy env 的 curl/wget 被域名裁判管理；用户 Clash（系统代理模式）不受影响；路由撤销后一切还原。
-   依赖：root。
+1. ~~**TUN 窄通道接管**~~ ✅ **2026-10-24 完成**（PoC-4 全 PASS）：裸进程被管辖（fake-ip+judge 命中）、零侵入（白名单外真实解析/AAAA 空）、看门注入 35s、REJECT 切断瞬时、回滚零残留。技术要点：53 被其他软件占用时用 pf rdr 53→1053；金丝雀域名证明应答来源。详见 experiments/0004。
 2. **Windows WFP PoC**：在 Windows 机器/VM 上用 `Fwpm*` API 实现"block 全体 + 高权重 sublayer 豁免我们的 exe"，并验证与 PoC-1 等价的行为。
    验收：普通程序直连被拦 + 豁免 exe 通 + 重启后规则持久/清理行为符合预期。
 

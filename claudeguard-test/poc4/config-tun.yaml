@@ -5,13 +5,17 @@ mixed-port: 7892
 allow-lan: false
 bind-address: '127.0.0.1'
 mode: rule
-log-level: info
+log-level: debug
 external-controller: 127.0.0.1:9095
 secret: ''
 
 profile:
   store-selected: false
   store-fake-ip: false
+
+# 金丝雀: 只有本引擎知道这个名字 -> 用来证明系统 DNS 真的被我们接管
+hosts:
+  'canary.monetafw.internal': 198.18.254.251
 
 # TUN 窄通道: auto-route=false (绝不抢默认路由); 198.18.0.0/16 由 root 脚本手工 route add
 tun:
@@ -23,7 +27,7 @@ tun:
 dns:
   enable: true
   prefer-h3: false
-  listen: 127.0.0.1:53
+  listen: 127.0.0.1:1053
   enhanced-mode: fake-ip
   fake-ip-range: 198.18.0.1/16
   # 最小化白名单模式: 仅 claude 系进 fake-ip 池, 其余全部真实解析 (零侵入命根)

@@ -12,6 +12,9 @@ profile:
   store-selected: false
   store-fake-ip: false
 
+hosts:
+  'canary.monetafw.internal': 198.18.254.251
+
 dns:
   enable: true
   prefer-h3: false

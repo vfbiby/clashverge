@@ -31,7 +31,7 @@ hosts 方案的四宗罪（也是立项动机）：
 
 ## 现状（2026-10-20）
 
-机制验证完成：PoC-1（pf 豁免）、PoC-2（域名裁判）、**PoC-3（端到端三判定全 PASS：杀节点→看门 29s 自动注入 REJECT（切断 0.006s）→复活 16s 自动解除，一次运行自动回滚零残留）**——`experiments/` 三篇在案。产品开发未开始，下一步见 [05-ROADMAP.md](./05-ROADMAP.md)（P1：TUN 系统级接管 + Windows WFP）。
+机制验证完成：PoC-1（pf 豁免）、PoC-2（域名裁判）、PoC-3（端到端三判定全 PASS：杀节点→看门 29s 自动注入 REJECT（切断 0.006s）→复活 16s 自动解除）、**PoC-4（TUN 系统级接管全 PASS：裸进程被域名裁判管辖，注入 35s/切断瞬时，零侵入）**——`experiments/` 四篇在案。产品开发未开始；下一步 P1b Windows WFP（待 Windows 环境）+ P2 产品骨架。
 
 ## 文档导航
 

@@ -94,6 +94,9 @@
 | 运行中"活→死"识别滞后 | 最坏 ≈30s（url-test 周期边界），需源码确认 interval 与空闲交互 | PoC-2 T5 观察 |
 | pf 直连拦截反馈形态 | 静默黑洞（curl exit 28、满超时）；产品可选 `block return`（RST 快失败） | PoC-1 T1 |
 | 白名单外域名解析 | 真实解析、完全不经 fakeip 池（零侵入由模式保证） | PoC-2 T2 |
+| TUN 路径看门注入延迟 | **35s**（15s×2+探活；PoC-4 实测 kill→INJECT） | PoC-4 J2 |
+| TUN 路径 REJECT 客户端失败 | **瞬时**（elapsed 0.000s，`curl` 立即返回） | PoC-4 J2 |
+| TUN 路径零侵入 | 白名单外域名真实解析（example.org/com 均 200）；claude 系 AAAA 空 | PoC-4 J1 |
 | PF 平面对 hosts 诱饵的免疫 | `--resolve` 强制真实 IP 直连照样被 pf 拦——判定与 hosts 无关 | PoC-3 判定1 |
 
 ## 7. 与用户已有代理的共存矩阵
@@ -111,6 +114,7 @@
 - **封堵**：macOS pf anchors + `user` 豁免（实测）；Windows 用 WFP 用户态 `Fwpm*` API，block + 高权重 sublayer 的 exe 豁免（**未实测**）
 - **专属出口**：受限代理 = MonetaProxy 形态（sing-box 裁剪核心，domain 白名单唯一出口）
 - **看门**：launchd（Win：Service）；探活 = 对 claude.ai HEAD，穿专属出口
+- **系统 DNS 接管**：优先直接监听 127.0.0.1:53；53 被占时用 **pf rdr 53→1053**（lo0 重定向，实测成立，PoC-4）；多解析器共存时用金丝雀域名证明应答来源
 - **兜底**：hosts 管理区间（全子域 v4+v6 诱饵 + DoH 域名 sinkhole）
 
 ## 9. 封禁库
@@ -131,4 +135,4 @@
 - 硬编码 IP + 程序内置 DoH：域名平面不可见；全接管模式 SNI 嗅探可补（**推定**）
 - 睡眠唤醒、快速用户切换后的状态机恢复时序
 - Windows 侧全部行为（WFP 豁免 sublayer 权重、wintun、服务生命周期）
-- TUN 窄通道对"不走代理端口的应用"的实际接管效果（需系统 DNS 指向引擎 + sudo）
+- ~~TUN 窄通道对"不走代理端口的应用"的接管效果~~ ✅ 已由 PoC-4 实测（裸进程被管辖、零侵入、注入 35s、切断瞬时）

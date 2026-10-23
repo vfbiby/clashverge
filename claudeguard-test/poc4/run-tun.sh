@@ -26,6 +26,9 @@ SERVICE=""
 ORIG_DNS=""
 UTUN=""
 ROUTE_NET="198.18.0.0/16"
+PF_STATE="pf-initial-state.txt"
+RULES_BACKUP="rules.before.txt"
+PF_WAS_ENABLED=0
 
 STOPFILE="stop.guard"
 WATCH_PID=""
@@ -104,24 +107,33 @@ restore() {
     note "SERVICE empty (never detected), skip dns restore"
   fi
 
+  # 3a) route delete first (utun disappears with engine -> delete must precede kill)
+  if [ -n "$UTUN" ]; then
+    route -n delete -net "$ROUTE_NET" 2>&1 | sed 's/^/  /'
+    note "route ${ROUTE_NET} deleted"
+  fi
+
   # 3) engine kill + evidence
   for P in $(pgrep -f "$ENGINE_CFG" 2>/dev/null); do kill "$P" 2>/dev/null; done
   sleep 1
   for P in $(pgrep -f "$ENGINE_CFG" 2>/dev/null); do kill -9 "$P" 2>/dev/null; done
   note "engine cleared: left $(pgrep -f "$ENGINE_CFG" 2>/dev/null | wc -l | tr -d ' ')"
   if [ -s "$ENGINE_LOG" ]; then cp -f "$ENGINE_LOG" "engine-mihomo.log" 2>/dev/null && note "engine log archived"; fi
+  rm -rf "$ENGINE_DIR"; note "engine dir cleaned"
 
-  # 4) route delete (only if we added one)
-  if [ -n "$UTUN" ]; then
-    route -n delete -net "$ROUTE_NET" 2>&1 | sed 's/^/  /'
-    note "route ${ROUTE_NET} deleted"
+  # 4.5) pf restore (rdr + enable state, P12)
+  if [ -s pf.conf.orig ]; then
+    pfctl -f pf.conf.orig 2>&1 | sed 's/^/  /'; note "pf config restored (pf.conf.orig)"
+  elif [ -s "$RULES_BACKUP" ]; then
+    pfctl -f "$RULES_BACKUP" 2>&1 | sed 's/^/  /'; note "pf rules restored (backup)"
   fi
+  if [ "$PF_WAS_ENABLED" = 0 ]; then pfctl -d 2>&1 | sed 's/^/  /'; note "pf disabled (was disabled)"; fi
 
   # 5) ports free
-  LEFT=$(lsof -nP -iTCP:7892 -iTCP:9095 -iUDP:53 -iTCP:53 -iUDP:1053 2>/dev/null | grep -E '^(verge|mihomo)' )
-  LEFT2=$(lsof -nP -iTCP:7892 -iTCP:9095 -iUDP:53 -iTCP:53 2>/dev/null | grep LISTEN)
+  LEFT=$(lsof -nP -iTCP:7892 -iTCP:9095 -iUDP:1053 -iTCP:1053 2>/dev/null | grep -E '^(verge|mihomo)' )
+  LEFT2=$(lsof -nP -iTCP:7892 -iTCP:9095 2>/dev/null | grep LISTEN)
   if [ -z "$LEFT" ] && [ -z "$LEFT2" ]; then
-    pass "ports 7892/9095/53 free"
+    pass "ports 7892/9095/1053 free (53 belongs to user Clash, excluded)"
   else
     fail "ports still occupied:"; echo "$LEFT"; echo "$LEFT2"
   fi
@@ -137,10 +149,17 @@ restore() {
   fi
   R3=$(rhost "$PROBE_DOMAIN")
   case "$R3" in
-    198.18.*) fail "net3 system resolver still in fake-ip range: $R3" ;;
-    "") note "net3 system resolver empty (cached?), observation" ;;
+    "") fail "net3 system resolver empty after restore" ;;
+    198.18.*) note "net3 resolver => $R3 (fake-ip; user Clash DNS behavior, accepted)" ;;
     *) pass "net3 system resolver $PROBE_DOMAIN => $R3 (real)" ;;
   esac
+  NDNS=$(networksetup -getdnsservers "$SERVICE" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
+  case "$NDNS" in *"aren't any"*) NDNS="Empty" ;; esac
+  if [ -z "$ORIG_DNS" ]; then
+    [ "$NDNS" = "Empty" ] && pass "net5 dns restored (Empty/DHCP)" || fail "net5 dns mismatch: '$NDNS'"
+  else
+    [ "$NDNS" = "$ORIG_DNS" ] && pass "net5 dns restored" || fail "net5 dns mismatch: '$NDNS' vs '$ORIG_DNS'"
+  fi
   R4=$(route -n get 198.18.254.254 2>/dev/null | awk '/interface/{print $2}')
   [ "$R4" = "$UTUN" ] && fail "net4 route still via $UTUN" || pass "net4 198.18/16 route restored (iface=${R4:-none})"
   hr "ROLLBACK done $(ts)"
@@ -170,11 +189,11 @@ for P in 7892 9095; do
   O=$(lsof -nP -iTCP:$P -sTCP:LISTEN 2>/dev/null | tail -n +2)
   [ -n "$O" ] && { fail "port $P occupied: $O"; exit 1; }
 done
-O53=$(lsof -nP -iUDP:53 2>/dev/null | tail -n +2)
-[ -n "$O53" ] && { fail "udp:53 occupied: $O53"; exit 1; }
-O53t=$(lsof -nP -iTCP:53 2>/dev/null | tail -n +2)
-[ -n "$O53t" ] && { fail "tcp:53 occupied: $O53t"; exit 1; }
-note "ports free: 7892/9095/53(udp+tcp)"
+O1053=$(lsof -nP -iUDP:1053 2>/dev/null | tail -n +2)
+[ -n "$O1053" ] && { fail "udp:1053 occupied: $O1053"; exit 1; }
+O1053t=$(lsof -nP -iTCP:1053 2>/dev/null | tail -n +2)
+[ -n "$O1053t" ] && { fail "tcp:1053 occupied: $O1053t"; exit 1; }
+note "ports free: 7892/9095/1053(udp+tcp)"
 
 # service detection: default iface -> hardware port name
 IFACE=$(route get default 2>/dev/null | awk '/interface/{print $2; exit}')
@@ -237,8 +256,8 @@ RIF=$(route -n get 198.18.254.254 2>/dev/null | awk '/interface/{print $2}')
 
 # engine DNS sanity (before touching system dns)
 echo "--- engine dns sanity ---"
-D1=$(dig +short @127.0.0.1 -p 53 claude.ai A | head -1)
-D2=$(dig +short @127.0.0.1 -p 53 "$PROBE_DOMAIN" A | head -1)
+D1=$(dig +short @127.0.0.1 -p 1053 claude.ai A | head -1)
+D2=$(dig +short @127.0.0.1 -p 1053 "$PROBE_DOMAIN" A | head -1)
 echo "engine-dns claude.ai=$D1  $PROBE_DOMAIN=$D2"
 case "$D1" in
   198.18.*) pass "engine dns fake-ip ok" ;;
@@ -250,19 +269,43 @@ case "$D2" in
   *) pass "engine dns whitelist ok (real ip)" ;;
 esac
 
+hr "PHASE-B-0 pf rdr setup (53 -> 1053; reason: user Clash occupies *:53)"
+pfctl -si 2>/dev/null | grep -qi 'Status: Enabled' && PF_WAS_ENABLED=1
+echo "PF_WAS_ENABLED=$PF_WAS_ENABLED" > "$PF_STATE"
+cp /etc/pf.conf pf.conf.orig 2>/dev/null && note "pf.conf backed up"
+pfctl -s rules > "$RULES_BACKUP" 2>/dev/null
+if [ "$PF_WAS_ENABLED" = 0 ]; then
+  pfctl -E 2>&1 | sed 's/^/  /' || { fail "pfctl -E failed"; exit 1; }
+fi
+S=$(bare_http 8 "https://$PROBE_DOMAIN")
+[ "$S" = "200" ] || { fail "post-pf sanity $PROBE_DOMAIN => '$S'"; exit 1; }
+# pf 语法顺序: normalization(scrub) -> translation(rdr) -> filtering(anchor/rules)
+SCRL=$(grep -c '^scrub' "$RULES_BACKUP" 2>/dev/null)
+[ -z "$SCRL" ] && SCRL=0
+{
+  if [ "$SCRL" -gt 0 ]; then head -n "$SCRL" "$RULES_BACKUP"; fi
+  echo "rdr pass on lo0 inet proto udp from any to 127.0.0.1 port 53 -> 127.0.0.1 port 1053"
+  echo "rdr pass on lo0 inet proto tcp from any to 127.0.0.1 port 53 -> 127.0.0.1 port 1053"
+  tail -n +$((SCRL+1)) "$RULES_BACKUP"
+} > rules.rdr
+pfctl -nf rules.rdr 2>&1 | sed 's/^/  /' || { fail "pf syntax check failed"; exit 1; }
+pfctl -f rules.rdr 2>&1 | sed 's/^/  /' || { fail "pfctl load rdr failed"; exit 1; }
+pfctl -s nat > rules.during.nat 2>/dev/null
+grep -q "port 1053" rules.during.nat && pass "rdr loaded (udp+tcp 53 -> 1053)" || { fail "rdr not present in nat table"; exit 1; }
+
 hr "PHASE-B switch system DNS -> $DNS_SERVER (the only user-visible change)"
 networksetup -setdnsservers "$SERVICE" "$DNS_SERVER" 2>&1 | sed 's/^/  /'
 dscacheutil -flushcache 2>/dev/null; killall -HUP mDNSResponder 2>/dev/null
 OK=0
 for I in $(seq 1 10); do
-  A=$(rhost claude.ai); B=$(rhost "$PROBE_DOMAIN")
-  echo "  resolver try$I: claude.ai=$A $PROBE_DOMAIN=$B"
-  case "$A" in 198.18.*) case "$B" in ""|198.18.*) : ;; *) OK=1 ;; esac ;; esac
+  A=$(rhost claude.ai); B=$(rhost "$PROBE_DOMAIN"); C=$(rhost canary.monetafw.internal)
+  echo "  resolver try$I: claude.ai=$A $PROBE_DOMAIN=$B canary=$C"
+  case "$A" in 198.18.*) case "$B" in ""|198.18.*) : ;; *) [ "$C" = "198.18.254.251" ] && OK=1 ;; esac ;; esac
   [ "$OK" = "1" ] && break
   sleep 1
 done
-[ "$OK" = "1" ] || { fail "system resolver did not converge (claude=fakeip, probe=real)"; exit 1; }
-pass "system dns now via engine (fake-ip for claude, real for others)"
+[ "$OK" = "1" ] || { fail "resolver did not converge or canary mismatch (engine not answering?)"; exit 1; }
+pass "system dns now via OUR engine (canary hit, fake-ip for claude, real for others)"
 
 # ---------- watchdog (15s loop; stopfile; def then call = P16) ----------
 watch_loop() (

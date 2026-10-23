@@ -1,0 +1,145 @@
+
+========== PHASE-0 preflight ==========
+time: 2026-10-24 01:40:05  os: 26.7.1  user: root (uid 0)
+>>> FAIL: udp:53 occupied: verge-mih 1004 root   10u  IPv6 0x86079ac7b624a0b2      0t0  UDP *:53
+
+========== PHASE-D ROLLBACK (trap/normal shared) ==========
+>>> INFO: watchdog stopped
+>>> INFO: SERVICE empty (never detected), skip dns restore
+>>> INFO: engine cleared: left 0
+>>> FAIL: ports still occupied:
+verge-mih 1004 root    9u  IPv6 0x2b44914acebbbeea      0t0  TCP *:53 (LISTEN)
+verge-mih 1004 root   10u  IPv6 0x86079ac7b624a0b2      0t0  UDP *:53
+verge-mih 1004 root    9u  IPv6 0x2b44914acebbbeea      0t0  TCP *:53 (LISTEN)
+>>> PASS: net1 bare curl example.org => 200
+>>> PASS: net2 user proxy 7890 => 200
+>>> PASS: net3 system resolver example.org => 104.20.26.136 (real)
+>>> PASS: net4 198.18/16 route restored (iface=en0)
+
+========== ROLLBACK done 2026-10-24 01:40:08 ==========
+
+========== PHASE-0 preflight ==========
+time: 2026-10-24 01:42:17  os: 26.7.1  user: root (uid 0)
+>>> INFO: ports free: 7892/9095/1053(udp+tcp)
+>>> INFO: default iface=en0 service=Wi-Fi
+>>> INFO: original dns: [EMPTY/DHCP]
+>>> INFO: scutil dns snapshot saved
+>>> INFO: 198.18.254.254 pre-route iface=en0
+
+========== PHASE-A engine start (root, tun enabled) + narrow route ==========
+>>> PASS: engine listening (root)
+>>> PASS: tun device: utun6
+>>> INFO: tun iface address: 198.18.0.1
+  add net 198.18.0.0: gateway utun6
+>>> PASS: route 198.18.0.0/16 -> utun6 (verified)
+--- engine dns sanity ---
+engine-dns claude.ai=198.18.254.254  example.org=172.66.157.237
+>>> PASS: engine dns fake-ip ok
+>>> PASS: engine dns whitelist ok (real ip)
+
+========== PHASE-B-0 pf rdr setup (53 -> 1053; reason: user Clash occupies *:53) ==========
+>>> INFO: pf.conf backed up
+  pfctl: Use of -f option, could result in flushing of rules
+  present in the main ruleset added by the system at startup.
+  See /etc/pf.conf for further details.
+  
+  pfctl: Use of -f option, could result in flushing of rules
+  present in the main ruleset added by the system at startup.
+  See /etc/pf.conf for further details.
+  
+  No ALTQ support in kernel
+  ALTQ related functions disabled
+>>> PASS: rdr loaded (udp+tcp 53 -> 1053)
+
+========== PHASE-B switch system DNS -> 127.0.0.1 (the only user-visible change) ==========
+  resolver try1: claude.ai=198.18.254.254 example.org=172.66.157.237 canary=198.18.254.251
+>>> PASS: system dns now via OUR engine (canary hit, fake-ip for claude, real for others)
+>>> PASS: watchdog up (pid=29198, interval=15s)
+  gate try1: probe=200
+>>> PASS: health gate ok
+
+========== PHASE-A1 bare process captured (J1) ==========
+>>> INFO: bare curl claude.ai resolves to 198.18.254.254 (fake-ip expected)
+WATCH 2026-10-24 01:42:20 probe=200 claude_exit=anytls-node injected=0
+>>> INFO: bare curl claude.ai => '000' (edge result, not a PASS criterion)
+>>> INFO: engine judge hits: 1
+>>> INFO: bare curl example.org => '200'
+>>> INFO: bare curl example.com => '200'
+>>> INFO: claude.ai AAAA => [empty] (empty=no v6 leak path)
+>>> PASS: J1: bare process fully governed by domain judge
+
+========== PHASE-B kill exit -> inject REJECT (J2) ==========
+>>> INFO: REST ClaudeExit -> dead : HTTP 204
+>>> INFO: REST EdgeProbe  -> dead : HTTP 204
+>>> INFO: kill-point 2026-10-24 01:42:22
+WATCH 2026-10-24 01:42:38 probe=000 claude_exit=dead injected=0
+INJECT-REJECT 2026-10-24 01:42:57 probe=000 claude_exit=dead
+WATCH 2026-10-24 01:42:57 probe=000 claude_exit=REJECT injected=1
+>>> PASS: watchdog injected REJECT (@2026-10-24 01:42:57)
+>>> INFO: bare curl claude.ai in REJECT state => code='000' elapsed=0.000s rest=REJECT
+>>> PASS: J2: REJECT injection + fast cut verified
+
+========== PHASE-C revive -> release (J3) ==========
+>>> INFO: REST EdgeProbe -> direct : HTTP 204
+WATCH 2026-10-24 01:43:12 probe=200 claude_exit=REJECT injected=1
+RELEASE 2026-10-24 01:43:28 probe=200 claude_exit=REJECT
+WATCH 2026-10-24 01:43:28 probe=200 claude_exit=anytls-node injected=0
+>>> PASS: J3: released (@2026-10-24 01:43:28), probe 200
+
+========== VERDICT (rollback follows via trap) ==========
+watchdog events:
+  INJECT-REJECT 2026-10-24 01:42:57 probe=000 claude_exit=dead
+  RELEASE 2026-10-24 01:43:28 probe=200 claude_exit=REJECT
+
+J1 bare process judged/zero-intrusion        => PASS
+J2 reject injection + fast cut               => PASS
+J3 revive + release                          => PASS
+>>> RESULT: PoC-4 TUN takeover [PASS]
+>>> INFO: artifacts: log.txt / engine-mihomo.log / dns-before.txt / scutil-dns-before.txt / route-19818-before.txt
+
+========== PHASE-D ROLLBACK (trap/normal shared) ==========
+./run-tun.sh: line 65: 29200 Terminated: 15          ( WFAIL=0; WOK=0; WINJ=0; while :; do
+    [ -f "$STOPFILE" ] && exit 0; CODE=$(iprobe); NOW=$(grp_now ClaudeExit); [ -z "$NOW" ] && NOW="(control-lost)"; if [ "$WINJ" = 0 ]; then
+        if [ "$CODE" = "200" ]; then
+            WOK=$((WOK+1)); WFAIL=0;
+        else
+            WFAIL=$((WFAIL+1)); WOK=0;
+        fi; if [ "$WFAIL" -ge "$FAIL_TO_INJECT" ]; then
+            printf 'INJECT-REJECT %s probe=%s claude_exit=%s\n' "$(ts)" "$CODE" "$NOW"; grp_set ClaudeExit REJECT > /dev/null; WINJ=1;
+        fi;
+    else
+        if [ "$CODE" = "200" ]; then
+            WOK=$((WOK+1));
+        else
+            WOK=0;
+        fi; if [ "$WOK" -ge "$OK_TO_RELEASE" ]; then
+            printf 'RELEASE %s probe=%s claude_exit=%s\n' "$(ts)" "$CODE" "$NOW"; grp_set ClaudeExit anytls-node > /dev/null; WINJ=0;
+        fi;
+    fi; printf 'WATCH %s probe=%s claude_exit=%s injected=%d\n' "$(ts)" "$CODE" "$(grp_now ClaudeExit)" "$WINJ"; sleep "$WATCH_INTERVAL";
+done )
+>>> INFO: watchdog stopped
+>>> INFO: DNS restored to Empty (DHCP) on Wi-Fi
+>>> INFO: dns now: Empty
+>>> INFO: engine cleared: left 0
+>>> INFO: engine log archived
+  route: writing to routing socket: not in table
+  delete net 198.18.0.0: not in table
+>>> INFO: route 198.18.0.0/16 deleted
+  pfctl: Use of -f option, could result in flushing of rules
+  present in the main ruleset added by the system at startup.
+  See /etc/pf.conf for further details.
+  
+  No ALTQ support in kernel
+  ALTQ related functions disabled
+>>> INFO: pf config restored (pf.conf.orig)
+>>> FAIL: ports still occupied:
+verge-mih 1004 root    9u  IPv6 0x2b44914acebbbeea      0t0  TCP *:53 (LISTEN)
+verge-mih 1004 root   10u  IPv6 0x86079ac7b624a0b2      0t0  UDP *:53
+verge-mih 1004 root    9u  IPv6 0x2b44914acebbbeea      0t0  TCP *:53 (LISTEN)
+>>> PASS: net1 bare curl example.org => 200
+>>> PASS: net2 user proxy 7890 => 200
+>>> PASS: net3 system resolver example.org => 104.20.26.136 (real)
+>>> PASS: net5 dns restored (Empty/DHCP)
+>>> PASS: net4 198.18/16 route restored (iface=en0)
+
+========== ROLLBACK done 2026-10-24 01:43:34 ==========
