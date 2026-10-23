@@ -6,6 +6,12 @@
 
 **结论**：闭环成立——pf 拦直连(含 --resolve 真实IP)+单主体豁免、引擎域名裁判、看门自动注入/解除 REJECT（杀→断 ≈29s、切断 0.006s、复通≈16s）全链路实测通过。详见 experiments/0003；两轮 FAIL 的根因（bash 3.2 两坑+取证时序）已入坑账 P16–P18。→ 下一步主线切 P1。
 
+## P1.5 · Linux 验证（PoC-4，机制映射分析稿完成 ✅）
+
+**靶子**：在真实 Linux 上复跑 PoC-2/3 口径（T1/T2/T5 + J1/J2/J3），验证 [07-LINUX-MAPPING.md](./07-LINUX-MAPPING.md) 的"一套架构双平台"判断。重点新验收：SW1 iptables `-m owner` 豁免 + **首匹配规则重排**（与 pf 后匹配相反，豁免必须前置）；SW2 `REJECT --reject-with tcp-reset` 快失败形态（vs DROP 黑洞）；SW3 systemd 看门自愈（Restart=always）；SW4 防火墙框架共存（专用 chain 挂钩，不与 ufw/firewalld/nftables 打架）。
+
+**测试台（待定）**：现有 OVH 云机 `ovhe`（注意 **host key 已变更**，须所有者核实重装/换钥身份后才可用）或本机 colima 容器（`--cap-add NET_ADMIN`）。
+
 ## P1 · 系统级接管两件（可与 P0 并行）
 
 1. **TUN 窄通道接管**：系统 DNS 指向引擎 + utun 窄路由（198.18.0.0/16），验证"不走代理端口的应用"（裸 `env -u proxy curl https://claude.ai`）也被域名裁判接管——断或走专属通道。
