@@ -6,12 +6,6 @@
 
 **结论**：闭环成立——pf 拦直连(含 --resolve 真实IP)+单主体豁免、引擎域名裁判、看门自动注入/解除 REJECT（杀→断 ≈29s、切断 0.006s、复通≈16s）全链路实测通过。详见 experiments/0003；两轮 FAIL 的根因（bash 3.2 两坑+取证时序）已入坑账 P16–P18。→ 下一步主线切 P1。
 
-## P1.5 · Linux 验证（PoC-4，机制映射分析稿完成 ✅）
-
-**靶子**：在真实 Linux 上复跑 PoC-2/3 口径（T1/T2/T5 + J1/J2/J3），验证 [07-LINUX-MAPPING.md](./07-LINUX-MAPPING.md) 的"一套架构双平台"判断。重点新验收：SW1 iptables `-m owner` 豁免 + **首匹配规则重排**（与 pf 后匹配相反，豁免必须前置）；SW2 `REJECT --reject-with tcp-reset` 快失败形态（vs DROP 黑洞）；SW3 systemd 看门自愈（Restart=always）；SW4 防火墙框架共存（专用 chain 挂钩，不与 ufw/firewalld/nftables 打架）。
-
-**测试台（待定）**：现有 OVH 云机 `ovhe`（注意 **host key 已变更**，须所有者核实重装/换钥身份后才可用）或本机 colima 容器（`--cap-add NET_ADMIN`）。
-
 ## P1 · 系统级接管两件（可与 P0 并行）
 
 1. **TUN 窄通道接管**：系统 DNS 指向引擎 + utun 窄路由（198.18.0.0/16），验证"不走代理端口的应用"（裸 `env -u proxy curl https://claude.ai`）也被域名裁判接管——断或走专属通道。
@@ -19,6 +13,14 @@
    依赖：root。
 2. **Windows WFP PoC**：在 Windows 机器/VM 上用 `Fwpm*` API 实现"block 全体 + 高权重 sublayer 豁免我们的 exe"，并验证与 PoC-1 等价的行为。
    验收：普通程序直连被拦 + 豁免 exe 通 + 重启后规则持久/清理行为符合预期。
+
+## P1.5 · Linux 验证（PoC-4）✅ 容器轮完成（2026-10-24，判定表见 [experiments/0004](./experiments/0004-poc-linux.md)）
+
+**容器轮结论**：三平面全部实证——iptables `-m owner` 豁免 + **首匹配重排预判实证**（豁免必须缀在 DROP 之前）、`REJECT tcp-reset` 比 DROP 快 ~2250 倍（原生快失败）、conntrack `ESTABLISHED ACCEPT` 产品语义落地、看门 +29s/+0.0007s 与 macOS 同形、**mihomo config 逐字节零改动跨平台**。遗留项 → ovhe 真机轮（该机仍需所有者核实 host key 变更）：
+- [ ] **SW3** systemd unit 版看门自愈（`Restart=always` + 停机信号语义）
+- [ ] **SW4'** ufw/firewalld 真实共存（专用 chain 挂钩不被发行版栈覆盖）
+- [ ] **SW5-B'** 非回环网络面 REJECT 对已建连接的 RST 行为复核
+- [ ] **真路由 v6 双栈** + TUN 全接管（netfilter 与 tun 路由配合）
 
 ## P2 · 产品骨架（立项开发第一步）
 

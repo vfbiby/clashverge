@@ -1,0 +1,181 @@
+
+========== PHASE-0 环境勘察 ==========
+时间: 2026-10-23 16:55:26  内核: Linux 7.0.12-linuxkit aarch64  用户: root (uid 0)
+bash 5.1  (P16/P17 为 bash3.2 坑, bash5 自然消失)
+iptables v1.8.7 (nf_tables)
+>>> INFO: iptables 快照留存 /tmp/base.rules + /tmp/base6.rules (进容器首拍备料时完成)
+SW4 基线调查: 防火墙共存栈
+  => ufw 未安装
+  => firewalld 未安装
+  => nftables 未安装
+iptables -S 全景: 3 行
+  -P INPUT ACCEPT
+  -P FORWARD ACCEPT
+  -P OUTPUT ACCEPT
+  -P INPUT ACCEPT
+  -P FORWARD ACCEPT
+  -P OUTPUT ACCEPT
+conntrack 子系统: 0
+
+========== PHASE-0b 封禁目标解析 (dig @223.5.5.5 视图) ==========
+# run-poc4.sh resolved 2026-10-23 16:55:27  (视图: dig @223.5.5.5)
+claude_v4: 160.79.104.10
+claude_v6: 2607:6bc0::10
+alias_v4:  104.20.23.154
+104.20.26.136
+172.66.147.243
+172.66.157.237
+alias_v6:  2606:4700:10::6814:179a
+2606:4700:10::6814:1a88
+2606:4700:10::ac42:93f3
+2606:4700:10::ac42:9ded
+# 容器自带 DNS (192.168.65.7) 视图对照:
+  container-dns claude.ai: 198.18.254.254 
+  container-dns claude.com: 198.18.254.254 
+  container-dns anthropic.com: 198.18.254.254 
+  container-dns example.org: 104.20.26.136 172.66.157.237 
+  container-dns example.com: 104.20.23.154 172.66.147.243 
+封禁 v4: 104.20.23.154 104.20.26.136 160.79.104.10 172.66.147.243 172.66.157.237 
+封禁 v6: 2606:4700:10::6814:179a 2606:4700:10::6814:1a88 2606:4700:10::ac42:93f3 2606:4700:10::ac42:9ded 2607:6bc0::10 
+
+========== PHASE-1 引擎启动 (uid=5011) + T1'/T2' + 健康门 ==========
+>>> PASS: 引擎已启动: pid=3355 user=monetafw (uid=5011)
+--- 三端口 ---
+  LISTEN 0      4096       127.0.0.1:1053      0.0.0.0:*          
+  LISTEN 0      4096       127.0.0.1:7892      0.0.0.0:*          
+  LISTEN 0      4096       127.0.0.1:9095      0.0.0.0:*          
+>>> PASS: T1' fake-ip: claude.ai @1053 => 198.18.0.4
+>>> PASS: T2' 零侵入: example.org @1053 => 104.20.26.136 (真实 IP)
+  gate try1: probe=200 claude_exit=anytls-node
+>>> PASS: 健康门通过: EdgeProbe[direct] 探活 200
+>>> INFO: 基线参考: claude.ai 经 7892 (ClaudeExit=anytls-node) => 000 0.466084 (边缘握手如实记录)
+
+========== SW5 连接残留实验 (已建连接面上: DROP / REJECT / conntrack-accept 三态) ==========
+>>> INFO: 造 victim(root) 到封禁 IP 的长连接: lo 加别名 example.org 真IP 104.20.26.136 = 本地流服务器
+>>> INFO: lo 别名已加: 到封禁 IP 的流量=自回环, OUTPUT 链照常命中
+  LISTEN 0      5      104.20.26.136:80        0.0.0.0:*    users:(("python3",pid=3402,fd=3))
+>>> INFO: SW5 场景基线: 链挂 OUTPUT 且空 = 全通 (此即'未装拦截'的状态)
+>>> INFO: SW5-A DROP: 5s 处落入 DROP 形态, 观察已建连接是否被掐
+>>> PASS: SW5-A t0: victim(uid=0) 长连接已建, 已收 4112384 bytes (通路全)[iptables 空]
+  SW5-A 时序: t0=4112384 -> 注DROP -> +3s=4702208 +6s=4702208 +10s=4702208 bytes
+  SW5-A 终态: curl exit=28(28=黑洞满超时)  conn: (established 表已无此连接)
+>>> FAIL: SW5-A 注入后仍流动 589824 bytes (需复核: DROP 竟未命中 established?)
+>>> INFO: SW5-B REJECT tcp-reset: 通路恢复->再建->5s 处直接落 REJECT 形态, 计旧连接残留寿命
+>>> PASS: SW5-B t0: 新长连接 4112384 bytes (链仍空=全通)
+  SW5-B 时序: 收4112384 -> 落REJECT(@T1) -> +1s=4702208 -> 连接终结 @35.01 s 后
+  SW5-B 终态: curl exit=28  conn: (established 表已无此连接)
+>>> INFO: SW5-B 残留≈35.01 s exit=28 (观测复核)
+
+========== SW1 iptables owner 豁免 + 首匹配重排 ==========
+>>> INFO: 恢复规范链 (DROP 形态): 豁免 ACCEPT(uid=5011) 在前, 封禁在后 首匹配胜出
+  -N MONETAFW
+  -A MONETAFW -p tcp -m owner --uid-owner 5011 -m tcp -m multiport --dports 80,443 -j ACCEPT
+  -A MONETAFW -d 104.20.23.154/32 -p tcp -m tcp -m multiport --dports 80,443 -j DROP
+  -A MONETAFW -d 104.20.26.136/32 -p tcp -m tcp -m multiport --dports 80,443 -j DROP
+  -A MONETAFW -d 160.79.104.10/32 -p tcp -m tcp -m multiport --dports 80,443 -j DROP
+  -A MONETAFW -d 172.66.147.243/32 -p tcp -m tcp -m multiport --dports 80,443 -j DROP
+  -A MONETAFW -d 172.66.157.237/32 -p tcp -m tcp -m multiport --dports 80,443 -j DROP
+  -N MONETAFW
+  -A MONETAFW -p tcp -m owner --uid-owner 5011 -m tcp -m multiport --dports 80,443 -j ACCEPT
+  -A MONETAFW -d 2606:4700:10::6814:179a/128 -p tcp -m tcp -m multiport --dports 80,443 -j DROP
+  -A MONETAFW -d 2606:4700:10::6814:1a88/128 -p tcp -m tcp -m multiport --dports 80,443 -j DROP
+  -A MONETAFW -d 2606:4700:10::ac42:93f3/128 -p tcp -m tcp -m multiport --dports 80,443 -j DROP
+  -A MONETAFW -d 2606:4700:10::ac42:9ded/128 -p tcp -m tcp -m multiport --dports 80,443 -j DROP
+  -A MONETAFW -d 2607:6bc0::10/128 -p tcp -m tcp -m multiport --dports 80,443 -j DROP
+--- OUTPUT 挂钩 ---
+  -P OUTPUT ACCEPT
+  -A OUTPUT -j MONETAFW
+>>> INFO: J1'-1 victim(root) 直连 claude.ai --resolve 钉 223.5.5.5 视图真实 IP 160.79.104.10 (铁证: 与 DNS 无关的机械拦截)
+>>> PASS: J1'-1 => '000 time=6.002177' exit=28 (被拦)
+>>> INFO: J1'-2 victim 直连 example.org (封禁表内另一域: DNS 陷阱与 hosts 全无关的公共对照面)
+>>> PASS: J1'-2 => '000 4.507934' exit=28 (被拦)
+>>> INFO: SW1 豁免判别: uid=5011 直连 example.org 应 200 (owner ACCEPT 第一匹配)
+>>> PASS: SW1 豁免: sudo -u monetafw 直连 example.org => 200 (PoC-1 T3 机制在 Linux 复现)
+>>> INFO: SW1 首匹配反序判别: DROP 排前豁免排后 => 豁免也被拦 (与 macOS pf 后匹配语义相反, 论证豁免必须缀前)
+反序链: -N MONETAFW|-A MONETAFW -d 104.20.26.136/32 -p tcp -m tcp -m multiport --dports 80,443 -j DROP|-A MONETAFW -p tcp -m owner --uid-owner 5011 -m tcp -m multiport --dports 80,443 -j ACCEPT|
+>>> FAIL: SW1 反序: 豁免 got '200'?? 语义不符
+>>> INFO: 复盘规范链: 豁免重排回最前
+>>> PASS: SW1 规范链复盘: 豁免 => 200
+
+========== SW2 快失败形态: DROP(黑洞满超时) vs REJECT --reject-with tcp-reset(秒断) ==========
+>>> INFO: victim 直连 example.org, 两形态各 3 连计时 (curl -m6)
+  DROP #1: 历时4.516 s | code=000 time=4.504160 | curl exit=28 (28=满超时黑洞)
+  DROP #2: 历时4.518 s | code=000 time=4.505478 | curl exit=28 (28=满超时黑洞)
+  DROP #3: 历时4.513 s | code=000 time=4.507071 | curl exit=28 (28=满超时黑洞)
+>>> INFO: 可感知切换: 整链原子替换为 REJECT 形态
+  REJECT #1: 历时0.007 s | code=000 time=0.002704 | curl exit=7 (56/104=收到 RST 干净失败)
+  REJECT #2: 历时0.006 s | code=000 time=0.002024 | curl exit=7 (56/104=收到 RST 干净失败)
+  REJECT #3: 历时0.006 s | code=000 time=0.002146 | curl exit=7 (56/104=收到 RST 干净失败)
+>>> INFO: 回 DROP 形态 (后续默认)
+
+========== PHASE-B 看门状态机: 杀节点 -> 看门自动注入 -> J2' ==========
+>>> PASS: 看门已上线 (pid=3602, interval=15s, failx2->INJECT, okx2->RELEASE)
+WATCH 2026-10-23 16:56:59 probe=200 claude_exit=anytls-node injected=0
+WATCH 2026-10-23 16:57:14 probe=200 claude_exit=anytls-node injected=0
+WATCH 2026-10-23 16:57:30 probe=200 claude_exit=anytls-node injected=0
+  WATCH 2026-10-23 16:56:59 probe=200 claude_exit=anytls-node injected=0
+  WATCH 2026-10-23 16:57:14 probe=200 claude_exit=anytls-node injected=0
+  WATCH 2026-10-23 16:57:30 probe=200 claude_exit=anytls-node injected=0
+>>> PASS: 正常态未误注入: ClaudeExit=anytls-node
+>>> INFO: kill-point: REST ClaudeExit -> dead ; REST EdgeProbe -> dead (同 PoC-3: 双杀令探活失败在列)
+>>> INFO: kill-point 2026-10-23 16:57:38
+WATCH 2026-10-23 16:57:49 probe=000 claude_exit=dead injected=0
+INJECT-REJECT 2026-10-23 16:58:07 probe=000 claude_exit=dead
+WATCH 2026-10-23 16:58:07 probe=000 claude_exit=REJECT injected=1
+>>> PASS: PHASE-B 看门已注入 (INJECT-REJECT @2026-10-23 16:58:07)
+  measured: code=000 elapsed=0.000698s (阈值≤0.2)
+>>> PASS: J2' 三证齐: REST claude_exit=REJECT + INJECT 日志 + elapsed=0.000698s
+
+========== PHASE-C 复活 -> 看门自动解除 -> J3' ==========
+>>> INFO: 复活: EdgeProbe=direct, ClaudeExit=anytls-node
+WATCH 2026-10-23 16:58:23 probe=200 claude_exit=anytls-node injected=1
+RELEASE 2026-10-23 16:58:38 probe=200 claude_exit=anytls-node
+WATCH 2026-10-23 16:58:38 probe=200 claude_exit=anytls-node injected=0
+>>> PASS: PHASE-C 已解除 (RELEASE @2026-10-23 16:58:38)
+>>> PASS: J3': example.org 经 7892 => 200 (复通)
+>>> INFO: J3b 观察: 引擎日志 example.org→EdgeProbe 规则命中计数=7 (非 PASS 条件, 取证)
+
+========== SW5-C 产品口径: 封禁链承载 conntrack-ESTABLISHED 放行 (07-MAPPING 预判复测) ==========
+>>> INFO: permissive -> 建长连 -> 链首插 conntrack-ESTAB-ACCEPT + owner豁免 + 全量 DROP -> 老连接应不受影响
+>>> PASS: SW5-C t0: (4112384 bytes 已收)
+SW5-C 生效链: -N MONETAFW|-A MONETAFW -m conntrack --ctstate ESTABLISHED -j ACCEPT|-A MONETAFW -p tcp -m owner --uid-owner 5011 -m tcp -m multiport --dports 80,443 -j ACCEPT|-A MONETAFW -d 104.20.23.154/32 -p tcp -m tcp -m multiport --dports 80,443 -j DROP|-A MONETAFW -d 104.20.26.136/32 -p tcp -m tcp -m multiport --dports 80,443 -j DROP|-A MONETAFW -d 160.79.104.10/32 -p tcp -m tcp -m multiport --dports 80,443 -j DROP|-A MONETAFW -d 172.66.147.243/32 -p tcp -m tcp -m multiport --dports 80,443 -j DROP|-A MONETAFW -d 172.66.157.237/32 -p tcp -m tcp -m multiport --dports 80,443 -j DROP|
+WATCH 2026-10-23 16:58:53 probe=200 claude_exit=anytls-node injected=0
+WATCH 2026-10-23 16:59:09 probe=200 claude_exit=anytls-node injected=0
+  SW5-C 时序: t0=4112384 -> 上链 -> +5s=8310784 bytes (增量=4198400; curl exit=28)
+>>> PASS: SW5-C ESTABLISHED 放行实证: conntrack 层放过老连接 + 正常收流 4198400 bytes
+>>> INFO: SW5-C 临时变体已撤, 恢复规范吨链 (后续为空, 回滚仍走基线快照)
+
+========== VERDICT ==========
+看门事件线:
+  INJECT-REJECT 2026-10-23 16:58:07 probe=000 claude_exit=dead
+  RELEASE 2026-10-23 16:58:38 probe=200 claude_exit=anytls-node
+
+== PoC-4 判定面 ==
+T1' fake-ip: dig @1053 claude.ai => 198.18.0.4   => PASS
+T2' 零侵入 : dig example.org => 104.20.26.136 (真实IP)  => PASS
+J1' iptables 拦直连 (claude --resolve + example.org) => PASS
+SW1 豁免: 正200 / 反序200 / 复盘200   (证据: sw1_exempt_seq.txt + log)
+SW2 对比: DROP vs REJECT 各 3 计时 (证据: sw2.txt)
+J2' 三证: exit=REJECT elapsed=0.000698s  => PASS
+J3' 复通: probe=200  => PASS
+SW5: DROP=掐死已建连接 / REJECT=残留≈35.01s RST 秒杀 / conntrack-est=放行(SW5-C)
+>>> 结论: PoC-4 Linux 等价性验证 【PASS】 — iptables 等价 pf + 引擎同源同配置 + 看门复刻成立
+>>> INFO: journal 式 WATCH 事件线已另存 /out/watch.txt; 证据目录: /out/*
+>>> INFO: 留存资产: /out/{engine-mihomo.log,resolved-ips.txt,watch.txt,sw*.txt,t2_real_ip.txt,...}
+
+========== PHASE-D ROLLBACK ==========
+Terminated
+>>> INFO: 看门循环已停
+>>> INFO: 引擎清除: 残留 0 个
+>>> INFO: 引擎日志已取证 /out/engine-mihomo.log
+>>> INFO: 引擎工作目录已清理
+>>> FAIL: base.rules 缺失, 无法恢复! 请人工 iptables -S 核对
+>>> INFO: lo 别名 104.20.26.136/32 已删
+>>> INFO: SW5 本地流服务器已杀
+>>> PASS: 端口 7892/1053/9095 全部释放
+>>> FAIL: MONETAFW 残留 1 处!
+OUTPUT 现状:
+  -P OUTPUT ACCEPT
+>>> PASS: 网络验1 直连 example.org => 200 (拦截已解除)
+
+========== ROLLBACK 完成 2026-10-23 16:59:11 ==========

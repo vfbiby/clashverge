@@ -1,0 +1,6 @@
+DROP #1 dur=4.516 code=000 time=4.504160 exit=28
+DROP #2 dur=4.518 code=000 time=4.505478 exit=28
+DROP #3 dur=4.513 code=000 time=4.507071 exit=28
+REJECT #1 dur=0.007 code=000 time=0.002704 exit=7
+REJECT #2 dur=0.006 code=000 time=0.002024 exit=7
+REJECT #3 dur=0.006 code=000 time=0.002146 exit=7

@@ -1,0 +1,11 @@
+WATCH 2026-10-23 16:56:59 probe=200 claude_exit=anytls-node injected=0
+WATCH 2026-10-23 16:57:14 probe=200 claude_exit=anytls-node injected=0
+WATCH 2026-10-23 16:57:30 probe=200 claude_exit=anytls-node injected=0
+WATCH 2026-10-23 16:57:49 probe=000 claude_exit=dead injected=0
+INJECT-REJECT 2026-10-23 16:58:07 probe=000 claude_exit=dead
+WATCH 2026-10-23 16:58:07 probe=000 claude_exit=REJECT injected=1
+WATCH 2026-10-23 16:58:23 probe=200 claude_exit=anytls-node injected=1
+RELEASE 2026-10-23 16:58:38 probe=200 claude_exit=anytls-node
+WATCH 2026-10-23 16:58:38 probe=200 claude_exit=anytls-node injected=0
+WATCH 2026-10-23 16:58:53 probe=200 claude_exit=anytls-node injected=0
+WATCH 2026-10-23 16:59:09 probe=200 claude_exit=anytls-node injected=0

@@ -1,0 +1,21 @@
+# == A 查询 (白名单域, 应 fake-ip) -- 注意 claude.ai 官方域名被 /etc/hosts 诱饵
+#    经 use-system-hosts(默认开) 合并, 引擎亦答 198.18.254.254 = 诱饵值而非池值
+claude.ai                    A    -> 198.18.254.254 
+anthropic.com                A    -> 198.18.254.254 
+docs.claude.ai               A    -> 198.18.0.4 
+console.anthropic.com        A    -> 198.18.0.5 
+# == B 白名单外域 (应真实 IP, 零侵入)
+example.org                  A    -> 172.66.157.237 104.20.26.136 
+example.com                  A    -> 172.66.147.243 104.20.23.154 
+# == C 公网对照 (223.5.5.5)
+example.org                  A    -> 172.66.157.237 104.20.26.136 
+example.com                  A    -> 104.20.23.154 172.66.147.243 
+# == D AAAA 行为 (ALL -> 空 ANSWER: 引擎不供 v6, 无 v6 泄漏路径)
+claude.ai                    AAAA ;; flags: qr aa rd ra ad; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 1
+x7f3e2.claude.ai             AAAA ;; flags: qr aa rd ra; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 1
+example.org                  AAAA ;; flags: qr aa rd ra; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 1
+anthropic.com                AAAA ;; flags: qr aa rd ra ad; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 1
+# == E 连续签发序列 (fake-ip 池行为, P06 对照 PoC-2: 新子域照样签发)
+a1.claude.ai             -> 198.18.0.6
+a2.claude.ai             -> 198.18.0.7
+a3.claude.ai             -> 198.18.0.8

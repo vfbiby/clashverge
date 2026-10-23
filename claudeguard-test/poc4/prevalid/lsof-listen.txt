@@ -1,0 +1,3 @@
+verge-mih 97135 zhangsike    6u  IPv4 0xf9cf677f5b91f375      0t0  TCP 127.0.0.1:9095 (LISTEN)
+verge-mih 97135 zhangsike    7u  IPv4 0x1ecaf9fc1384475d      0t0  TCP 127.0.0.1:7892 (LISTEN)
+verge-mih 97135 zhangsike    8u  IPv4 0xe184870363a3d94d      0t0  TCP 127.0.0.1:1053 (LISTEN)

@@ -1,0 +1,109 @@
+# PoC-4 TUN 窄通道实弹配置 (mihomo v1.19.32, root 运行, TUN 入站)
+# 基于 poc3/config.yaml (端到端最强底稿) 改动:
+#   1) **去掉 dns.listen 插座** —— 预验实测否决了"改绑 127.0.0.2:53 避让"设想:
+#      用户引擎持 [::]:53 通配 (0.0.0.0 写法在 mihomo 里转成 v6 双栈通配),
+#      BSD UDP 语义下任何特定地址的 :53 UDP bind 一律 EADDRINUSE (prevalid P5 实测)。
+#      改用 TUN dns-hijack: 系统 DNS 直接指向 198.18.0.53 (fake-ip 段内专用地址),
+#      查询被 198.18.0.0/16 窄路由送进 utun, 由 gvisor 栈内 hijack 应答 ——
+#      **全程不占用任何 :53 socket, 与用户引擎的 53 无死角共存**。
+#   2) tun 入站: gvisor 栈 + auto-route:false —— 绝不抓默认路由, 只靠脚本手工
+#      `route add -net 198.18.0.0/16` 把 fake-ip 段(含 DNS 查询!)送进 utun。
+#   3) 上游 DNS = udp://223.5.5.5 + udp://119.29.29.29 (双上游直连可达)。
+# 其余 (白名单 5 域 / 策略组命名 / 规则) 与 PoC-3 完全一致 —— 判定口径可直接对照。
+mixed-port: 7892
+allow-lan: false
+bind-address: '127.0.0.1'
+mode: rule
+log-level: info
+external-controller: 127.0.0.1:9095
+secret: ''
+
+profile:
+  store-selected: false
+  store-fake-ip: false
+
+# ---------------------------------------------------------------
+# TUN 入站 (本实验核心): 只把 198.18.0.0/16 段的流量(=系统发给 198.18.0.53 的
+# DNS 查询 + 应用发给 fake-ip 的连接)送进来, 默认路由一字不动。
+# auto-redirect 为 Linux 专属 (nftables 重定向), macOS 写 false 关闭。
+# ---------------------------------------------------------------
+tun:
+  enable: true
+  stack: gvisor
+  auto-route: false
+  auto-redirect: false
+  auto-detect-interface: true
+  # 专用 DNS 指针地址: 系统解析器把所有查询发给它 -> 窄路由 -> utun -> hijack
+  dns-hijack:
+    - '198.18.0.53:53'
+
+dns:
+  enable: true
+  prefer-h3: false
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  # 最小化白名单模式 (P15): 仅 claude 系域名进 fake-ip, 其余全部真实解析 (零侵入)
+  fake-ip-filter:
+    - '+.claude.ai'
+    - '+.claude.com'
+    - '+.clau.de'
+    - '+.anthropic.com'
+    - '+.claudeusercontent.com'
+  fake-ip-filter-mode: whitelist
+  nameserver:
+    - 'udp://223.5.5.5'
+    - 'udp://119.29.29.29'
+  default-nameserver:
+    - '223.5.5.5'
+    - '119.29.29.29'
+
+proxies:
+  # 健康节点 (PoC-2/3 延用; 规则面命中=PASS 口径, 边缘握手如实记录不作判定)
+  - name: anytls-node
+    type: anytls
+    server: 154.53.75.226
+    port: 8450
+    password: 7c62cf6b-1bb1-48f5-b308-761c09ac072e
+    sni: anytls6.node10.local
+    skip-cert-verify: true
+  # 死节点定义: 127.0.0.1:9 连接即刻被本地 RST (PoC-2 dead-a 同款)
+  - name: dead
+    type: socks5
+    server: 127.0.0.1
+    port: 9
+  # 直连扮演"健康出口" (PoC-3 direct 扮演策略延续)
+  - name: direct
+    type: direct
+
+proxy-groups:
+  # 专属出口: 看门状态机的操作对象 (REST PUT /proxies/ClaudeExit)
+  - name: ClaudeExit
+    type: select
+    proxies:
+      - anytls-node
+      - dead
+      - REJECT
+      - DIRECT
+  # 探活边缘: example.org -> EdgeProbe, 看门探针专用 (select: direct / dead, 永不含 REJECT)
+  - name: EdgeProbe
+    type: select
+    proxies:
+      - direct
+      - dead
+
+rules:
+  # 探活边缘 (看门真值探针 + 对照 alias)
+  - 'DOMAIN-SUFFIX,example.com,EdgeProbe'
+  - 'DOMAIN-SUFFIX,example.org,EdgeProbe'
+  # 置顶: claude 系域名唯一出口
+  - 'DOMAIN-SUFFIX,claude.ai,ClaudeExit'
+  - 'DOMAIN-SUFFIX,claude.com,ClaudeExit'
+  - 'DOMAIN-SUFFIX,clau.de,ClaudeExit'
+  - 'DOMAIN-SUFFIX,anthropic.com,ClaudeExit'
+  - 'DOMAIN-SUFFIX,claudeusercontent.com,ClaudeExit'
+  # 兜底: 未进 fake-ip 池的 198.18.x.x (典型 = /etc/hosts 诱饵 198.18.254.254,
+  # 裸进程查 hosts 拿到诱饵后不发 DNS 查询, 窄路由仍把它送进 TUN) 也一律走
+  # ClaudeExit —— 诱饵路径同样被管辖
+  - 'IP-CIDR,198.18.0.0/16,ClaudeExit,no-resolve'
+  # 其余全部直连
+  - 'MATCH,DIRECT'

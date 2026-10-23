@@ -1,0 +1,74 @@
+# PoC-4 预验记录（全部由 zhangsike 普通用户态完成, 未用 sudo; 26-10-24 00:58-01:12 +08:00）
+
+判定纪律同 PoC-3: 本记录所有"实测"行均有本目录证据文件/命令输出对应。
+
+## P1. 两份 config `mihomo -t` 过检
+命令: "/Applications/Clash Verge.app/Contents/MacOS/verge-mihomo" -t -f <cfg> -d <tmpwork>
+结果: config-tun.yaml / config-prevalid.yaml 均 successful（一次通过, 无逐 key 报错消歧过程）。
+注意: 对照实验发现 `-t` 对 tun 段的**未知 key 不报错**（故意写错 key 仍 successful）——
+tun key 拼写正确性不能靠 -t 背书, 改用二进制 strings 取证:
+`strings verge-mihomo | grep -E '\[DNS\] hijack|parse dns-hijack url error'`
+=> 命中 `[DNS] hijack udp:%s from %s` / `[DNS] hijack tcp:%s` / `Tun[%s] proxy listening at: %s`
+=> dns-hijack 与 tun 是本内核实装特性（非仅 -t 放行）。
+
+## P2. 引擎三端口用户态启动+释放（config-prevalid, listen 127.0.0.1:1053）
+7892/9095/1053 LISTEN 正常（lsof-listen.txt）; kill 后 lsof 零残听（lsof-after.txt）。
+
+## P3. DNS 行为矩阵（dns-matrix.txt 全量）
+| 域 | 查询 | 结果 |
+|---|---|---|
+| claude.ai / anthropic.com（hosts 诱饵名） | A | **198.18.254.254 = 诱饵值**（非池值! 见下 P9.1） |
+| docs.claude.ai / console.anthropic.com（hosts 未列名） | A | **池 fake-ip 198.18.0.4 / 198.18.0.5** 顺序签发 |
+| 新造子域 a1/a2/a3.claude.ai | A | 198.18.0.6/7/8 顺序签发（P06 同 PoC-2: 全新子域照样新签发） |
+| example.org / example.com | A | 真实 IP, 与 @223.5.5.5 对照一致（零侵入成立） |
+| ALL（含白名单域/白名单外域/v6） | AAAA | **一律 NOERROR + ANSWER:0 空**——引擎不供任何 v6, 无 fake-ip6 路径 |
+
+## P4. REST parity
+GET /proxies/ClaudeExit now=anytls-node; PUT dead/direct => 204; PUT 伪名 nope => **400**
+（PoC-3 当时伪名是 404 —— v1.19.32 行为细化, 语义同为"拒设", 看门只设真成员名不受影响）。
+
+## P5. REJECT 计时 / 死节点形态（PoC-3 判定2/P5 机械复验）
+- ClaudeExit=REJECT 态 claude.ai 经 7892: code=000 elapsed=**0.004645s**（阈值 0.2s）
+- EdgeProbe=dead 态 example.org 经 7892: code=000 elapsed=**3.62s**（P08 死拨重试拉长, 与 PoC-3 一致）
+
+## P6. 判定-wording 复用性（engine-log-sample.txt）
+`[TCP] 127.0.0.1:52723 --> claude.ai:443 match DomainSuffix(claude.ai) using ClaudeExit[REJECT]`
+=> run-tun.sh 的 J1 grep 口径（`match DomainSuffix` / `match IP-CIDR(198.18.0.0/16)` + `using ClaudeExit`）
+在本内核日志格式下成立。注意: DNS-only 查询不产生 judge 行（judge 行 = TCP 连接路径）。
+
+## P7. 看门+回滚 bash 3.2 复跑（watchdog-repro.sh, /bin/bash 3.2.57）
+- R1 函数体真的执行（WATCH x10; P16 `f() (…)&` 防回归）
+- R2 pseq=000,000,200,200 十周期: INJECT x3 / RELEASE x2 —— 恰等于连败/连胜分段数,
+  无 flap 无双发（PoC-3 P6 同口径的确定性证据）
+- R3 停机文件+验证式击杀: 看门确定性退场（击杀前 alive=1）
+- R4 P16 地雷扫描（VAR 紧邻多字节）: harness 与 run-checks.sh 均干净; run-tun.sh 正稿同法扫
+
+## P8. （新坑坐实）/$() 子壳变量不跨调用
+iprobe 的 mock 计数器写在函数里经 $(iprobe) 调用 → 每次调用是新子壳, 计数器永远从
+fork 刻的快照起步, 序列"冻住"（第一轮 bug: 全 000 / 全 200 二值假象）。**真实看门代码
+无此形态**（WFAIL/WOK 计数器在 watch_loop 子壳体内自持, 不隔 $()）, 但任何"计数型
+mock 探针"必须落盘（文件）跨子壳。已入 harness 注释, 供后续实验借用。
+
+## P9. （关键发现, 直接改了包的设计）两个 BSD 端口语义坑
+1. **127.0.0.2 非 root 不可 bind**: `bind udp 127.0.0.2:1053: can't assign requested address`
+   （对照: 127.0.0.1 正常）—— macOS/BSD 只有已分配地址可 bind, Linux 式 127/8 全段可绑
+   在 macOS 不成立; 需 `ifconfig lo0 alias 127.0.0.2`（root）才可。
+2. **用户引擎持 [::]:53 通配 → 我们绑任何特定地址的 :53 UDP 一律 EADDRINUSE**:
+   影子实验（prevalid/port53-sim-wild.yaml + port53-sim-specific.yaml, 全 1053 端口等比复刻）:
+   引擎A写 listen 0.0.0.0:1053 → 实际 lsof 见 **IPv6 [::]:1053 通配**（mihomo 把 0.0.0.0
+   归一成 v6 双栈）; 引擎B再试图 bind 127.0.0.1:1053 →
+   UDP: `bind: address already in use`（被通配吃掉）; TCP: 正常 LISTEN。
+   => 任务书"改绑 127.0.0.2:53 避让"的设想**两条腿都被实测否决**（①别名缺失 ②UDP通配墙）。
+   => **设计变更（已回写 config-tun.yaml）**: 放弃 :53 插座, 系统 DNS 直接指向
+   **198.18.0.53**（fake-ip 段内专用指针地址）→ 该查询走 198.18.0.0/16 窄路由进 utun →
+   `dns-hijack: ['198.18.0.53:53']` 在 gvisor 栈内应答。全程**不占任何 :53 socket**,
+   与用户引擎零冲突; DNS 接管本身也行进在实验边界（TUN）内。
+   系统解析器确实只会查询 :53 端口, 198.18.0.53:53 恰好就是"端口53 的合法 setter 地址"。
+
+## 预验产物索引
+- dns-matrix.txt          —— P3 全量原始输出
+- lsof-listen.txt / lsof-after.txt —— P2 起停证据
+- engine-log-sample.txt   —— P6 judge 行格式样本
+- port53-sim-wild.yaml / port53-sim-specific.yaml —— P9.2 影子实验双配置
+- run-checks.sh           —— 一键复跑预验（engine 起/查/停/零残留闭环）
+- watchdog-repro.sh       —— P7 看门 bash3.2 复跑 harness

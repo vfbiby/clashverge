@@ -1,0 +1,7 @@
+2026-10-23T16:43:53Z mihomo -t prevalidation
+time="2026-10-23T16:43:53.102403088Z" level=info msg="Can't find config, create a initial config file"
+time="2026-10-23T16:43:53.102581047Z" level=info msg="Start initial configuration in progress"
+time="2026-10-23T16:43:53.102671547Z" level=info msg="Geodata Loader mode: memconservative"
+time="2026-10-23T16:43:53.102677547Z" level=info msg="Geosite Matcher implementation: succinct"
+time="2026-10-23T16:43:53.102783880Z" level=info msg="Initial configuration complete, total time: 0ms"
+configuration file /tmp/cfg.yaml test is successful

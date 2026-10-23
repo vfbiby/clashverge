@@ -1,0 +1,23 @@
+
+========== RAN-B SW1 反序重测 (全 IP 钉死) ==========
+时间: 2026-10-23 17:04:45
+快照字节数: 182 / 183  (必须 >0)
+反序链: -N MONETAFW|-A MONETAFW -d 104.20.23.154/32 -p tcp -m tcp -m multiport --dports 80,443 -j DROP|-A MONETAFW -d 104.20.26.136/32 -p tcp -m tcp -m multiport --dports 80,443 -j DROP|-A MONETAFW -d 160.79.104.10/32 -p tcp -m tcp -m multiport --dports 80,443 -j DROP|-A MONETAFW -d 172.66.147.243/32 -p tcp -m tcp -m multiport --dports 80,443 -j DROP|-A MONETAFW -d 172.66.157.237/32 -p tcp -m tcp -m multiport --dports 80,443 -j DROP|-A MONETAFW -p tcp -m owner --uid-owner 5011 -m tcp -m multiport --dports 80,443 -j ACCEPT|
+反序: exempt(uid=5011) => '000 time=4.508634' exit=28   victim(root) => '000 time=4.509345' exit=28
+>>> PASS: SW1 反序(全 IP): 豁免 '000 time=4.508634' 也被拦 — iptables 首匹配胜出 = 与 macOS pf 后匹配语义相反, 完整实证
+
+========== RAN-B 规范链复盘 (豁免重排最前) ==========
+>>> PASS: SW1 规范链复盘: 豁免 => 200
+>>> PASS: 规范链: victim(root) '000' (still被拦)
+
+========== RAN-B 回滚到基线 ==========
+收尾全景:
+  -P INPUT ACCEPT
+  -P FORWARD ACCEPT
+  -P OUTPUT ACCEPT
+  -P INPUT ACCEPT
+  -P FORWARD ACCEPT
+  -P OUTPUT ACCEPT
+>>> PASS: MONETAFW 零残留
+>>> PASS: 网络验1 直连 example.org => 200
+>>> INFO: 补跑完成 2026-10-23 17:05:00
