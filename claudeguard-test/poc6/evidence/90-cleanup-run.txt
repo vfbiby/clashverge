@@ -1,0 +1,72 @@
+
+========== CLEAN-0 拆除前状态 ==========
+[GUARD cleanup-start] mtcopy-gateway=active mtcopy-platform=active nginx=active http=200 -> OK
+netns: cgpoc (id: 0) 
+cg links: cgv0@if3 
+host nat: -P POSTROUTING ACCEPT -A POSTROUTING -s 10.233.6.0/30 -m comment --comment cg-poc6-nat -j MASQUERADE 
+ip_forward: 1
+unit: absent
+
+========== CLEAN-1 进程/端口/路由清理 ==========
+残留(本实验)进程: 0
+0
+
+========== CLEAN-2 宿主临时 netfilter 规则删除 + 快照 diff ==========
+deleted nft table ip nat (我们引入, 基线不存在)
+ip_forward restored: 0
+iptables diff: 0B  ip6tables diff: 0B  nft diff: 0B
+
+========== CLEAN-3 netns / veth / resolv 覆盖拆除 ==========
+netns list: []
+cg links: [cgv0@if3 ]
+/etc/netns exists? NO
+
+========== CLEAN-4 路由/地址快照对照 ==========
+ip route diff vs baseline:
+  1a2
+  > 10.233.6.0/30 dev cgv0 proto kernel scope link src 10.233.6.1 
+ip addr 中 cg 残留: 2
+/etc/hosts + /etc/resolv.conf 改动: UNCHANGED
+
+========== CLEAN-5 systemd unit / ufw 终态 ==========
+unit present? NO
+host ufw: Status: inactive
+
+========== CLEAN-6 /root 清理 ==========
+total 116768
+drwxr-xr-x  5 root root     4096 Oct 23 18:14 .
+drwx------ 16 root root     4096 Oct 23 17:54 ..
+-rwxr-xr-x  1 root root     2784 Oct 23 18:00 10-setup.sh
+-rwxr-xr-x  1 root root     5274 Oct 23 18:01 20-sw3-systemd.sh
+-rwxr-xr-x  1 root root     7333 Oct 23 18:00 30-sw4-ufw.sh
+-rwxr-xr-x  1 root root     4008 Oct 23 18:02 31-sw4-restart.sh
+-rwxr-xr-x  1 root root     3692 Oct 23 18:03 32-sw4-wipe.sh
+-rwxr-xr-x  1 root root     3662 Oct 23 18:04 33-sw4-initpath.sh
+-rwxr-xr-x  1 root root     3530 Oct 23 18:05 34-sw4-precedence.sh
+-rwxr-xr-x  1 root root     5332 Oct 23 18:09 40-sw5-reject.sh
+-rwxr-xr-x  1 root root     4223 Oct 23 18:12 50-v6.sh
+-rwxr-xr-x  1 root root     8334 Oct 23 18:01 60-tun.sh
+-rwxr-xr-x  1 root root     4609 Oct 23 18:00 90-cleanup.sh
+-rwxr-xr-x  1 root root      347 Oct 23 18:02 cg-reassert.sh
+-rwxr-xr-x  1 root root     1970 Oct 23 18:01 common.sh
+-rw-r--r--  1 root root     2026 Oct 23 18:00 config-tun-ns.yaml
+-rw-r--r--  1 root root     2778 Oct 23 17:55 config-tun.yaml
+-rw-r--r--  1 root root     2838 Oct 23 17:55 config.yaml
+drwxr-xr-x  2 root root     4096 Oct 23 18:14 evidence
+-rw-r--r--  1 root root 57409662 Oct 23 17:55 mihomo
+-rwxr-xr-x  1 root root 61993086 Oct 23 17:55 mihomo-amd64
+-rwxr-xr-x  1 root root     1402 Oct 23 18:10 probe-keepalive.py
+-rwxr-xr-x  1 root root    25541 Oct 23 17:55 run-poc4.sh
+-rwxr-xr-x  1 root root     1213 Oct 23 18:13 tun-watch.sh
+drwxr-xr-x  2 root root     4096 Oct 23 18:14 tunwork
+drwxr-xr-x  3 root root     4096 Jul 20 16:31 ufw-backup
+-rw-r--r--  1 root root      311 Oct 23 17:56 uploaded.sha256
+-rwxr-xr-x  1 root root      324 Oct 23 18:01 watch-stub.sh
+
+========== CLEAN-7 生产栈终态自检 ==========
+[GUARD cleanup-done] mtcopy-gateway=active mtcopy-platform=active nginx=active http=200 -> OK
+mtcopy-gateway: active (uptime Tue 2026-10-20 11:35:46 UTC)
+mtcopy-platform: active (uptime Tue 2026-10-20 11:35:46 UTC)
+nginx: active (uptime Sat 2026-10-03 06:57:49 UTC)
+http: 200
+cleaning done

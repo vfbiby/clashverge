@@ -1,0 +1,99 @@
+
+========== TUN-0 预检 ==========
+[GUARD tun-start] mtcopy-gateway=active mtcopy-platform=active nginx=active http=200 -> OK
+time="2026-10-23T18:13:01.620042865Z" level=info msg="Start initial configuration in progress"
+time="2026-10-23T18:13:01.621090024Z" level=info msg="Geodata Loader mode: memconservative"
+time="2026-10-23T18:13:01.621112352Z" level=info msg="Geosite Matcher implementation: succinct"
+time="2026-10-23T18:13:01.621392158Z" level=info msg="Initial configuration complete, total time: 1ms"
+configuration file /root/claudeguard-poc6/tunwork/config.yaml test is successful
+ns 内 7892/9095/53 均空闲
+
+========== TUN-1 启动引擎(ns 内) + 手工窄路由 ==========
+engine pid=1025845 (netns cgpoc)
+tun device: cgtun0
+2: cgtun0: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UNKNOWN group default qlen 500
+    link/none 
+    inet 198.18.0.1/30 brd 198.18.0.3 scope global cgtun0
+       valid_lft forever preferred_lft forever
+    inet6 fdfe:dcba:9876::1/126 scope global 
+       valid_lft forever preferred_lft forever
+    inet6 fe80::7a00:65a:cf9c:5652/64 scope link stable-privacy proto kernel_ll 
+       valid_lft forever preferred_lft forever
+route: 198.18.0.0/30 dev cgtun0 proto kernel scope link src 198.18.0.1 
+198.18.0.0/16 dev cgtun0 scope link 
+ctrl api: {"meta":true,"version":"v1.19.32"}
+
+========== TUN-2 DNS 接管 (ns 内系统解析器 -> 127.0.0.1:53) ==========
+ns 系统解析 claude.ai  => 198.18.0.4 (期望 198.18.x.x)
+ns 系统解析 example.org => 104.20.26.136 (期望真实 IP)
+dig claude.ai AAAA     => [ ] (期望空)
+
+========== TUN-3 白名单外零侵入 (裸 curl, 无代理 env, 经 NAT 出公网) ==========
+bare https://example.org => 200|0.046032 (期望 200|...)
+引擎日志中 example.org 判定: 0 条
+
+========== TUN-4 裸进程被域名裁判接管 (claude.ai -> fake-ip -> TUN -> ClaudeExit) ==========
+bare https://claude.ai [ClaudeExit=anytls-node] => 000|0.481933 (边缘结果, 非唯一判据)
+bare https://api.anthropic.com => 000|0.171701
+引擎裁判命中: DomainSuffix(claude.ai) 0 -> 1
+time="2026-10-23T18:13:05.790895693Z" level=info msg="[TCP] 198.18.0.1:55878 --> claude.ai:443 match DomainSuffix(claude.ai) using ClaudeExit[anytls-node]"
+time="2026-10-23T18:13:05.990573612Z" level=info msg="[TCP] 198.18.0.1:52432 --> api.anthropic.com:443 match DomainSuffix(anthropic.com) using ClaudeExit[anytls-node]"
+>>> TUN-4 域名裁判接管 => PASS
+REST ClaudeExit -> DIRECT : HTTP 204
+bare https://claude.ai [DIRECT] => 403|0.189041
+REST ClaudeExit -> anytls-node : HTTP 204
+
+========== TUN-5 看门(从 poc3/poc4 移植: 15s 间隔 / 2 连失败注入 / 2 连成功释放) ==========
+watchdog pid=1025936 interval=15s fail_to_inject=2 ok_to_release=2
+  probe gate try1: 200
+
+========== TUN-6 J2: 切 dead -> <=45s INJECT-REJECT -> 裸 curl 瞬时失败 ==========
+REST ClaudeExit -> dead  : HTTP 204
+REST EdgeProbe  -> dead  : HTTP 204
+kill-point 2026-10-23 18:13:08
+INJECT=1 注入延迟=33725ms (~33s)
+REJECT 态裸 curl https://claude.ai => 000|0.013949  elapsed=36ms
+>>> TUN-6 (J2) => PASS
+WATCH 2026-10-23 18:13:06 probe=200 claude_exit=anytls-node injected=0
+WATCH 2026-10-23 18:13:24 probe=000 claude_exit=dead injected=0
+INJECT-REJECT 2026-10-23 18:13:42 probe=000 claude_exit=dead
+WATCH 2026-10-23 18:13:42 probe=000 claude_exit=REJECT injected=1
+
+========== TUN-7 J3: 切回 direct -> RELEASE -> 复通 ==========
+REST EdgeProbe -> direct : HTTP 204
+RELEASE=1 释放延迟=30639ms (~30s) ClaudeExit=DIRECT
+RELEASE 后裸 curl https://claude.ai => 403|0.041616
+>>> TUN-7 (J3) => PASS
+RELEASE 后 example.org => 200|0.057061
+INJECT-REJECT 2026-10-23 18:13:42 probe=000 claude_exit=dead
+RELEASE 2026-10-23 18:14:12 probe=200 claude_exit=REJECT
+
+========== TUN-8 证据汇总 ==========
+fake-ip 判定: claude.ai=198.18.0.4 example.org=104.20.26.136 AAAA泄漏=NO-V6-LEAK
+引擎日志裁判命中(ClaudeExit): 5
+engine log tail:
+time="2026-10-23T18:13:39.552747567Z" level=warning msg="[TCP] dial EdgeProbe (match DomainSuffix/example.org) 127.0.0.1:36222 --> example.org:443 error: 127.0.0.1:9 connect error: dial tcp 127.0.0.1:9: connect: connection refused"
+time="2026-10-23T18:13:39.590387787Z" level=warning msg="[TCP] dial EdgeProbe (match DomainSuffix/example.org) 127.0.0.1:36222 --> example.org:443 error: 127.0.0.1:9 connect error: dial tcp 127.0.0.1:9: connect: connection refused"
+time="2026-10-23T18:13:39.607065982Z" level=warning msg="[TCP] dial EdgeProbe (match DomainSuffix/example.org) 127.0.0.1:36222 --> example.org:443 error: 127.0.0.1:9 connect error: dial tcp 127.0.0.1:9: connect: connection refused"
+time="2026-10-23T18:13:39.686895741Z" level=warning msg="[TCP] dial EdgeProbe (match DomainSuffix/example.org) 127.0.0.1:36222 --> example.org:443 error: 127.0.0.1:9 connect error: dial tcp 127.0.0.1:9: connect: connection refused"
+time="2026-10-23T18:13:39.839583058Z" level=warning msg="[TCP] dial EdgeProbe (match DomainSuffix/example.org) 127.0.0.1:36222 --> example.org:443 error: 127.0.0.1:9 connect error: dial tcp 127.0.0.1:9: connect: connection refused"
+time="2026-10-23T18:13:39.877215247Z" level=warning msg="[TCP] dial EdgeProbe (match DomainSuffix/example.org) 127.0.0.1:36222 --> example.org:443 error: 127.0.0.1:9 connect error: dial tcp 127.0.0.1:9: connect: connection refused"
+time="2026-10-23T18:13:40.064965787Z" level=warning msg="[TCP] dial EdgeProbe (match DomainSuffix/example.org) 127.0.0.1:36222 --> example.org:443 error: 127.0.0.1:9 connect error: dial tcp 127.0.0.1:9: connect: connection refused"
+time="2026-10-23T18:13:41.065405262Z" level=warning msg="[TCP] dial EdgeProbe (match DomainSuffix/example.org) 127.0.0.1:36222 --> example.org:443 error: 127.0.0.1:9 connect error: dial tcp 127.0.0.1:9: connect: connection refused"
+time="2026-10-23T18:13:42.286048755Z" level=info msg="[TCP] 198.18.0.1:59524 --> claude.ai:443 match DomainSuffix(claude.ai) using ClaudeExit[REJECT]"
+time="2026-10-23T18:13:57.129740299Z" level=info msg="[TCP] 127.0.0.1:34042 --> example.org:443 match DomainSuffix(example.org) using EdgeProbe[direct]"
+time="2026-10-23T18:14:12.209792747Z" level=info msg="[TCP] 127.0.0.1:51058 --> example.org:443 match DomainSuffix(example.org) using EdgeProbe[direct]"
+time="2026-10-23T18:14:13.010003247Z" level=info msg="[TCP] 198.18.0.1:58194 --> claude.ai:443 match DomainSuffix(claude.ai) using ClaudeExit[DIRECT]"
+
+========== TUN-9 拆除 ==========
+engine cleared: 0
+0 procs
+ns 内端口: 0 个仍在监听 (期望 0)
+ns 内 tun: 0 (期望 0)
+[GUARD tun-done] mtcopy-gateway=active mtcopy-platform=active nginx=active http=200 -> OK
+
+========== TUN VERDICT ==========
+TUN-4 域名裁判接管      => PASS
+TUN-6 J2 注入+瞬时失败  => PASS (注入 33725ms / 失败 36ms)
+TUN-7 J3 释放+复通      => PASS (释放 30639ms)
+P20 AAAA 跨平台复核     => NO-V6-LEAK

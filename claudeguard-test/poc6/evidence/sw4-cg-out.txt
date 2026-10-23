@@ -1,0 +1,11 @@
+-N CG-OUT
+-A CG-OUT -m owner --uid-owner 0 -j ACCEPT
+-A CG-OUT -d 10.233.6.1/32 -p tcp -m tcp --dport 18080 -j REJECT --reject-with tcp-reset
+-P OUTPUT ACCEPT
+-A OUTPUT -j CG-OUT
+-A OUTPUT -j ufw-before-logging-output
+-A OUTPUT -j ufw-before-output
+-A OUTPUT -j ufw-after-output
+-A OUTPUT -j ufw-after-logging-output
+-A OUTPUT -j ufw-reject-output
+-A OUTPUT -j ufw-track-output

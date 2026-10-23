@@ -1,0 +1,2 @@
+-P POSTROUTING ACCEPT
+-A POSTROUTING -s 10.233.6.0/30 -m comment --comment cg-poc6-nat -j MASQUERADE

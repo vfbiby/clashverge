@@ -1,0 +1,50 @@
+
+========== V6-0 准备: 双栈测试服务 (host 侧 cgv0) ==========
+[GUARD v6-start] mtcopy-gateway=active mtcopy-platform=active nginx=active http=200 -> OK
+ns OUTPUT 初始: v4=[-P OUTPUT ACCEPT ] v6=[-P OUTPUT ACCEPT ]
+host listeners:
+LISTEN 0      5         10.233.6.1:18091      0.0.0.0:*    users:(("python3",pid=1025353,fd=3))                                                 
+LISTEN 0      5       [fd00:c6::1]:18090         [::]:*    users:(("python3",pid=1025350,fd=3))                                                 
+ns routes (v6): fd00:c6::/64 dev cgv1 proto kernel metric 256 pref medium fd00:c6::/64 dev cgv1 metric 1024 pref medium fe80::/64 dev cgv1 proto kernel metric 256 pref medium 
+ns v6 global addr: cgv1@if4 UP fd00:c6::2/64 fe80::a4dc:53ff:fe53:1afd/64 
+ns public v6 egress exists? 0 default routes (0 = 无公网 v6 出口)
+
+========== V6-A 无 v6 规则时: v6 流量直通 (证明'漏 v6 = 泄漏'的实际路径) ==========
+v6 无规则 root => code=200|0.005047 rc=0 (预期 200)
+v6 无规则 nobody => code=200|0.001159 rc=0 (预期 200)
+>>> V6-A => LEAK-PATH-CONFIRMED (v4-only 保护下 v6 完全绕过)
+v4 对照(无规则) root => code=200|0.002779 rc=0
+
+========== V6-B ip6tables DROP 该 v6 目标 -> ns 内 curl 失败 ==========
+-P OUTPUT ACCEPT
+-A OUTPUT -d fd00:c6::1/128 -p tcp -m tcp --dport 18090 -m comment --comment cg-poc6-v6 -j DROP
+v6 DROP 后 root => code=000|6.002942 rc=28
+v6 DROP 后 nobody => code=000|6.002880 rc=28
+>>> V6-B => PASS
+
+========== V6-C ip6tables -m owner --uid-owner 0 豁免 (与 v4 同构) ==========
+-P OUTPUT ACCEPT
+-A OUTPUT -m owner --uid-owner 0 -m comment --comment cg-poc6-v6-exempt -j ACCEPT
+-A OUTPUT -d fd00:c6::1/128 -p tcp -m tcp --dport 18090 -m comment --comment cg-poc6-v6 -j DROP
+v6 owner 豁免后 root => code=200|0.001830 rc=0 (预期 200)
+v6 owner 豁免后 nobody => code=000|6.002116 rc=28 (预期仍被拦)
+>>> V6-C => PASS
+
+========== V6-D v4 同构对照 (iptables owner 豁免) ==========
+v4 DROP: root=code=000|6.002618 rc=28 nobody=code=000|6.002583 rc=28
+v4 owner 豁免: root=code=200|0.001545 rc=0 nobody=code=000|6.002749 rc=28
+>>> V6-D v4/v6 等价性 => PASS (v6 PASS / v4 PASS)
+-P OUTPUT ACCEPT
+-A OUTPUT -m owner --uid-owner 0 -m comment --comment cg-poc6-v4-exempt -j ACCEPT
+-A OUTPUT -d 10.233.6.1/32 -p tcp -m tcp --dport 18091 -m comment --comment cg-poc6-v4 -j DROP
+
+========== V6-E 拆除 ==========
+ip6tables 残留: -P OUTPUT ACCEPT 
+iptables 残留: -P OUTPUT ACCEPT 
+[GUARD v6-done] mtcopy-gateway=active mtcopy-platform=active nginx=active http=200 -> OK
+
+========== V6 VERDICT ==========
+A 无规则 v6 直通(泄漏路径) => LEAK-PATH-CONFIRMED
+B v6 DROP 生效             => PASS
+C ip6tables owner 豁免     => PASS
+D v4 同构对照             => PASS

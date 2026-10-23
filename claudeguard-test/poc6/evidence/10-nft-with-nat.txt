@@ -1,0 +1,7 @@
+# Warning: table ip nat is managed by iptables-nft, do not touch!
+table ip nat {
+	chain POSTROUTING {
+		type nat hook postrouting priority srcnat; policy accept;
+		ip saddr 10.233.6.0/30  counter packets 3 bytes 197 masquerade
+	}
+}

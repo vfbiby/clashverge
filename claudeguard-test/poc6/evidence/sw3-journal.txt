@@ -1,0 +1,25 @@
+Oct 23 18:00:49 vps-7aaa3e0d systemd[1]: claudeguard-watch-test.service: Deactivated successfully.
+Oct 23 18:00:51 vps-7aaa3e0d systemd[1]: claudeguard-watch-test.service: Scheduled restart job, restart counter is at 4.
+Oct 23 18:00:51 vps-7aaa3e0d systemd[1]: Started claudeguard-watch-test.service - claudeguard PoC-6 watchdog restart test (transient).
+Oct 23 18:00:51 vps-7aaa3e0d watch-stub.sh[1011663]: STOPFILE seen, clean exit 0 (2026-10-23 18:00:51)
+Oct 23 18:00:51 vps-7aaa3e0d systemd[1]: claudeguard-watch-test.service: Deactivated successfully.
+Oct 23 18:00:54 vps-7aaa3e0d systemd[1]: claudeguard-watch-test.service: Scheduled restart job, restart counter is at 5.
+Oct 23 18:00:54 vps-7aaa3e0d systemd[1]: Started claudeguard-watch-test.service - claudeguard PoC-6 watchdog restart test (transient).
+Oct 23 18:00:54 vps-7aaa3e0d watch-stub.sh[1011666]: STOPFILE seen, clean exit 0 (2026-10-23 18:00:54)
+Oct 23 18:00:54 vps-7aaa3e0d systemd[1]: claudeguard-watch-test.service: Deactivated successfully.
+Oct 23 18:00:55 vps-7aaa3e0d systemd[1]: Stopped claudeguard-watch-test.service - claudeguard PoC-6 watchdog restart test (transient).
+Oct 23 18:00:55 vps-7aaa3e0d systemd[1]: /run/systemd/system/claudeguard-watch-test.service:15: Unknown key 'RestartPreventExitStatus' in section [Install], ignoring.
+Oct 23 18:00:55 vps-7aaa3e0d systemd[1]: /run/systemd/system/claudeguard-watch-test.service:15: Unknown key 'RestartPreventExitStatus' in section [Install], ignoring.
+Oct 23 18:00:55 vps-7aaa3e0d systemd[1]: /run/systemd/system/claudeguard-watch-test.service:15: Unknown key 'RestartPreventExitStatus' in section [Install], ignoring.
+Oct 23 18:00:56 vps-7aaa3e0d systemd[1]: /run/systemd/system/claudeguard-watch-test.service:15: Unknown key 'RestartPreventExitStatus' in section [Install], ignoring.
+Oct 23 18:00:56 vps-7aaa3e0d systemd[1]: /run/systemd/system/claudeguard-watch-test.service:15: Unknown key 'RestartPreventExitStatus' in section [Install], ignoring.
+Oct 23 18:01:47 vps-7aaa3e0d systemd[1]: Started claudeguard-watch-test.service - claudeguard PoC-6 watchdog restart test (transient).
+Oct 23 18:01:47 vps-7aaa3e0d watch-stub.sh[1012104]: watchdog heartbeat pid=1012104 2026-10-23 18:01:47
+Oct 23 18:01:48 vps-7aaa3e0d watch-stub.sh[1012104]: watchdog heartbeat pid=1012104 2026-10-23 18:01:48
+Oct 23 18:01:49 vps-7aaa3e0d watch-stub.sh[1012104]: watchdog heartbeat pid=1012104 2026-10-23 18:01:49
+Oct 23 18:01:50 vps-7aaa3e0d watch-stub.sh[1012117]: date: write error: Broken pipe (os error 32)
+Oct 23 18:01:50 vps-7aaa3e0d systemd[1]: claudeguard-watch-test.service: Main process exited, code=killed, status=9/KILL
+Oct 23 18:01:50 vps-7aaa3e0d systemd[1]: claudeguard-watch-test.service: Failed with result 'signal'.
+Oct 23 18:01:52 vps-7aaa3e0d systemd[1]: claudeguard-watch-test.service: Scheduled restart job, restart counter is at 1.
+Oct 23 18:01:52 vps-7aaa3e0d systemd[1]: Started claudeguard-watch-test.service - claudeguard PoC-6 watchdog restart test (transient).
+Oct 23 18:01:52 vps-7aaa3e0d watch-stub.sh[1012199]: watchdog heartbeat pid=1012199 2026-10-23 18:01:52

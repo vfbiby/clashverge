@@ -1,0 +1,36 @@
+
+========== SW4-A8-0 准备: ufw 在 ns 内启用并设 default deny outgoing (与我们的豁免正面冲突) ==========
+[GUARD sw4p-start] mtcopy-gateway=active mtcopy-platform=active nginx=active http=200 -> OK
+ufw(ns): Status: active Logging: on (low) Default: deny (incoming), deny (outgoing), disabled (routed) New profiles: skip 
+deny outgoing 生效? root->example.org: code=000 rc=6 (预期失败)
+deny outgoing 下 root->测试服务: code=000 rc=28 (预期失败)
+
+========== SW4-A8-1 (a) iptables 专用链置顶 + uid0 ACCEPT ==========
+-P OUTPUT DROP
+-A OUTPUT -j CG-OUT
+-A OUTPUT -j ufw-before-logging-output
+root->测试服务: code=200 rc=0  (若 200 => 我们的 ACCEPT 终止了整表遍历)
+root->example.org: code=200 rc=0
+nobody->测试服务: code=000 rc=7 (预期仍被拦)
+
+========== SW4-A8-2 (b) 摘掉 iptables 钩子, 改用独立 nft 表 (同 hook, priority -10) ==========
+table inet cg {
+	chain out {
+		type filter hook output priority filter - 10; policy accept;
+		meta skuid 0 accept
+		ip daddr 10.233.6.1 tcp dport 18080 reject with tcp reset
+	}
+}
+nft 基链 accept 在 ufw DROP 之前命中: root->测试服务: code=000 rc=28
+root->example.org: code=000 rc=6 (若仍失败 => nft 的 accept 不终止同 hook 其他基链, ufw DROP 仍生效)
+nobody->测试服务: code=000 rc=7
+
+========== SW4-A8-3 恢复 ufw 默认(allow outgoing) 复核共存 ==========
+allow outgoing 后 root->测试服务: code=200 rc=0  nobody: code=000 rc=7  egress: code=200 rc=0
+两条机制同时在场: root=code=200 rc=0 nobody=code=000 rc=7
+
+========== SW4-A8-4 拆除 ==========
+ns 残留: -P OUTPUT ACCEPT -A OUTPUT -j ufw-before-logging-output -A OUTPUT -j ufw-before-output -A OUTPUT -j ufw-after-output -A OUTPUT -j ufw-after-logging-output -A OUTPUT -j ufw-reject-output -A OUTPUT -j ufw-track-output 
+host ufw: Status: inactive
+宿主 /etc/ufw: UNCHANGED
+[GUARD sw4p-done] mtcopy-gateway=active mtcopy-platform=active nginx=active http=200 -> OK

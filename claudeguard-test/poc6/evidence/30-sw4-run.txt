@@ -1,0 +1,411 @@
+
+========== SW4-0 准备 ==========
+[GUARD sw4-start] mtcopy-gateway=active mtcopy-platform=active nginx=active http=200 -> OK
+shadow copy: 68K, files=14
+baseline(root / nobody) via CG-untouched path: root=200|0.008611 rc=0 nobody=200|0.001242 rc=0
+
+========== SW4-A1 netns 内 ufw enable (shadow /etc/ufw) ==========
+Firewall is active and enabled on system startup
+--- ns ufw status ---
+Status: active
+Logging: on (low)
+Default: deny (incoming), allow (outgoing), disabled (routed)
+New profiles: skip
+--- host ufw status (必须仍 inactive) ---
+Status: inactive
+--- ns iptables 链全景 ---
+-P INPUT DROP
+-P FORWARD DROP
+-P OUTPUT ACCEPT
+-N ufw-after-forward
+-N ufw-after-input
+-N ufw-after-logging-forward
+-N ufw-after-logging-input
+-N ufw-after-logging-output
+-N ufw-after-output
+-N ufw-before-forward
+-N ufw-before-input
+-N ufw-before-logging-forward
+-N ufw-before-logging-input
+-N ufw-before-logging-output
+-N ufw-before-output
+-N ufw-logging-allow
+-N ufw-logging-deny
+-N ufw-not-local
+-N ufw-reject-forward
+-N ufw-reject-input
+-N ufw-reject-output
+-N ufw-skip-to-policy-forward
+-N ufw-skip-to-policy-input
+-N ufw-skip-to-policy-output
+-N ufw-track-forward
+-N ufw-track-input
+-N ufw-track-output
+-N ufw-user-forward
+-N ufw-user-input
+-N ufw-user-limit
+-N ufw-user-limit-accept
+-N ufw-user-logging-forward
+-N ufw-user-logging-input
+-N ufw-user-logging-output
+-N ufw-user-output
+-A INPUT -j ufw-before-logging-input
+-A INPUT -j ufw-before-input
+-A INPUT -j ufw-after-input
+-A INPUT -j ufw-after-logging-input
+-A INPUT -j ufw-reject-input
+-A INPUT -j ufw-track-input
+-A FORWARD -j ufw-before-logging-forward
+-A FORWARD -j ufw-before-forward
+-A FORWARD -j ufw-after-forward
+-A FORWARD -j ufw-after-logging-forward
+-A FORWARD -j ufw-reject-forward
+-A FORWARD -j ufw-track-forward
+-A OUTPUT -j ufw-before-logging-output
+-A OUTPUT -j ufw-before-output
+-A OUTPUT -j ufw-after-output
+-A OUTPUT -j ufw-after-logging-output
+-A OUTPUT -j ufw-reject-output
+-A OUTPUT -j ufw-track-output
+-A ufw-after-input -p udp -m udp --dport 137 -j ufw-skip-to-policy-input
+-A ufw-after-input -p udp -m udp --dport 138 -j ufw-skip-to-policy-input
+-A ufw-after-input -p tcp -m tcp --dport 139 -j ufw-skip-to-policy-input
+-A ufw-after-input -p tcp -m tcp --dport 445 -j ufw-skip-to-policy-input
+-A ufw-after-input -p udp -m udp --dport 67 -j ufw-skip-to-policy-input
+-A ufw-after-input -p udp -m udp --dport 68 -j ufw-skip-to-policy-input
+-A ufw-after-input -m addrtype --dst-type BROADCAST -j ufw-skip-to-policy-input
+-A ufw-after-logging-forward -m limit --limit 3/min --limit-burst 10 -j LOG --log-prefix "[UFW BLOCK] "
+-A ufw-after-logging-input -m limit --limit 3/min --limit-burst 10 -j LOG --log-prefix "[UFW BLOCK] "
+-A ufw-before-forward -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A ufw-before-forward -p icmp -m icmp --icmp-type 3 -j ACCEPT
+-A ufw-before-forward -p icmp -m icmp --icmp-type 11 -j ACCEPT
+-A ufw-before-forward -p icmp -m icmp --icmp-type 12 -j ACCEPT
+-A ufw-before-forward -p icmp -m icmp --icmp-type 8 -j ACCEPT
+-A ufw-before-forward -j ufw-user-forward
+-A ufw-before-input -i lo -j ACCEPT
+-A ufw-before-input -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A ufw-before-input -m conntrack --ctstate INVALID -j ufw-logging-deny
+-A ufw-before-input -m conntrack --ctstate INVALID -j DROP
+-A ufw-before-input -p icmp -m icmp --icmp-type 3 -j ACCEPT
+-A ufw-before-input -p icmp -m icmp --icmp-type 11 -j ACCEPT
+-A ufw-before-input -p icmp -m icmp --icmp-type 12 -j ACCEPT
+-A ufw-before-input -p icmp -m icmp --icmp-type 8 -j ACCEPT
+-A ufw-before-input -p udp -m udp --sport 67 --dport 68 -j ACCEPT
+-A ufw-before-input -j ufw-not-local
+-A ufw-before-input -d 224.0.0.251/32 -p udp -m udp --dport 5353 -j ACCEPT
+-A ufw-before-input -d 239.255.255.250/32 -p udp -m udp --dport 1900 -j ACCEPT
+-A ufw-before-input -j ufw-user-input
+-A ufw-before-output -o lo -j ACCEPT
+-A ufw-before-output -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A ufw-before-output -j ufw-user-output
+-A ufw-logging-allow -m limit --limit 3/min --limit-burst 10 -j LOG --log-prefix "[UFW ALLOW] "
+-A ufw-logging-deny -m conntrack --ctstate INVALID -m limit --limit 3/min --limit-burst 10 -j RETURN
+-A ufw-logging-deny -m limit --limit 3/min --limit-burst 10 -j LOG --log-prefix "[UFW BLOCK] "
+-A ufw-not-local -m addrtype --dst-type LOCAL -j RETURN
+-A ufw-not-local -m addrtype --dst-type MULTICAST -j RETURN
+-A ufw-not-local -m addrtype --dst-type BROADCAST -j RETURN
+-A ufw-not-local -m limit --limit 3/min --limit-burst 10 -j ufw-logging-deny
+-A ufw-not-local -j DROP
+-A ufw-skip-to-policy-forward -j DROP
+-A ufw-skip-to-policy-input -j DROP
+-A ufw-skip-to-policy-output -j ACCEPT
+-A ufw-track-output -p tcp -m conntrack --ctstate NEW -j ACCEPT
+-A ufw-track-output -p udp -m conntrack --ctstate NEW -j ACCEPT
+-A ufw-user-limit -m limit --limit 3/min -j LOG --log-prefix "[UFW LIMIT BLOCK] "
+-A ufw-user-limit -j REJECT --reject-with icmp-port-unreachable
+-A ufw-user-limit-accept -j ACCEPT
+
+========== SW4-A2 挂我们的 iptables 专用链 CG-OUT (首匹配豁免 uid0 + 封禁样本) ==========
+-N CG-OUT
+-A CG-OUT -m owner --uid-owner 0 -j ACCEPT
+-A CG-OUT -d 10.233.6.1/32 -p tcp -m tcp --dport 18080 -j REJECT --reject-with tcp-reset
+-P OUTPUT ACCEPT
+-A OUTPUT -j CG-OUT
+-A OUTPUT -j ufw-before-logging-output
+-A OUTPUT -j ufw-before-output
+-A OUTPUT -j ufw-after-output
+-A OUTPUT -j ufw-after-logging-output
+-A OUTPUT -j ufw-reject-output
+-A OUTPUT -j ufw-track-output
+semantics: root(exempt)=200|0.001691 rc=0   nobody(ban sample)=000|0.000224 rc=7
+>>> SW4-A2 封禁语义生效 => PASS
+
+========== SW4-A3 ufw reload 是否冲掉我们的 iptables 专用链? ==========
+Firewall reloaded
+CG-OUT 存在? rc=0  (rc!=0 表示链已消失)
+-N CG-OUT
+-A CG-OUT -m owner --uid-owner 0 -j ACCEPT
+-A CG-OUT -d 10.233.6.1/32 -p tcp -m tcp --dport 18080 -j REJECT --reject-with tcp-reset
+-P OUTPUT ACCEPT
+-A OUTPUT -j CG-OUT
+-A OUTPUT -j ufw-before-logging-output
+-A OUTPUT -j ufw-before-output
+-A OUTPUT -j ufw-after-output
+-A OUTPUT -j ufw-after-logging-output
+-A OUTPUT -j ufw-reject-output
+-A OUTPUT -j ufw-track-output
+reload 后语义: root=200|0.001957 rc=0 nobody=000|0.000177 rc=7  (nobody 若变 200 = 封禁被框架冲掉)
+>>> SW4-A3 裸 iptables 专用链在 ufw reload 后的存活 => SURVIVED
+
+========== SW4-A4 用 ufw 官方 after.init 钩子重断言 ==========
+Firewall reloaded
+after.init 钩子后 CG-OUT: -N CG-OUT -A CG-OUT -m owner --uid-owner 0 -j ACCEPT 
+语义: root=200|0.002135 rc=0 nobody=000|0.000173 rc=7
+>>> SW4-A4 after.init 钩子重断言 => PASS
+
+========== SW4-A5 独立 nft 原生表 (inet cg) 过一遍 ufw reload ==========
+table inet cg {
+	chain out {
+		type filter hook output priority filter - 10; policy accept;
+		meta skuid 0 accept
+		ip daddr 10.233.6.1 tcp dport 18080 reject with tcp reset
+	}
+}
+nft-only 语义: root=200|0.001694 rc=0 nobody=000|0.000167 rc=7
+Firewall reloaded
+reload 后 inet cg 表: rc=0
+table inet cg {
+	chain out {
+		type filter hook output priority filter - 10; policy accept;
+		meta skuid 0 accept
+		ip daddr 10.233.6.1 tcp dport 18080 reject with tcp reset
+	}
+}
+reload 后 nft-only 语义: root=200|0.001407 rc=0 nobody=000|0.000164 rc=7
+>>> SW4-A5 独立 nft 表在 ufw reload 后的存活 => SURVIVED
+
+========== SW4-B 共存下封禁/放行语义 + ufw 自身功能验证 ==========
+host -> ns 监听(ufw default deny incoming): code=000 rc=28 (预期失败)
+ufw INPUT 策略生效 => BLOCKED
+[GUARD sw4-mid] mtcopy-gateway=active mtcopy-platform=active nginx=active http=200 -> OK
+共存(iptables链+nft表+ufw) 语义: root=200|0.001345 rc=0 nobody=000|0.000255 rc=7
+>>> SW4-B 共存封禁语义 => PASS
+共存态 ns -> https://example.org = 200
+>>> SW4-B2 共存态出网 => PASS
+
+========== SW4-C 拆除 ==========
+Firewall stopped and disabled on system startup
+--- ns 残留 (应为纯默认策略) ---
+-P INPUT ACCEPT
+-P FORWARD ACCEPT
+-P OUTPUT ACCEPT
+-N ufw-after-forward
+-N ufw-after-input
+-N ufw-after-logging-forward
+-N ufw-after-logging-input
+-N ufw-after-logging-output
+-N ufw-after-output
+-N ufw-before-forward
+-N ufw-before-input
+-N ufw-before-logging-forward
+-N ufw-before-logging-input
+-N ufw-before-logging-output
+-N ufw-before-output
+-N ufw-reject-forward
+-N ufw-reject-input
+-N ufw-reject-output
+-N ufw-track-forward
+-N ufw-track-input
+-N ufw-track-output
+-A INPUT -j ufw-before-logging-input
+-A INPUT -j ufw-before-input
+-A INPUT -j ufw-after-input
+-A INPUT -j ufw-after-logging-input
+-A INPUT -j ufw-reject-input
+-A INPUT -j ufw-track-input
+-A FORWARD -j ufw-before-logging-forward
+-A FORWARD -j ufw-before-forward
+-A FORWARD -j ufw-after-forward
+-A FORWARD -j ufw-after-logging-forward
+-A FORWARD -j ufw-reject-forward
+-A FORWARD -j ufw-track-forward
+-A OUTPUT -j ufw-before-logging-output
+-A OUTPUT -j ufw-before-output
+-A OUTPUT -j ufw-after-output
+-A OUTPUT -j ufw-after-logging-output
+-A OUTPUT -j ufw-reject-output
+-A OUTPUT -j ufw-track-output
+--- ns nft 残留 ---
+table ip filter {
+	chain ufw-before-logging-input {
+	}
+
+	chain ufw-before-logging-output {
+	}
+
+	chain ufw-before-logging-forward {
+	}
+
+	chain ufw-before-input {
+	}
+
+	chain ufw-before-output {
+	}
+
+	chain ufw-before-forward {
+	}
+
+	chain ufw-after-input {
+	}
+
+	chain ufw-after-output {
+	}
+
+	chain ufw-after-forward {
+	}
+
+	chain ufw-after-logging-input {
+	}
+
+	chain ufw-after-logging-output {
+	}
+
+	chain ufw-after-logging-forward {
+	}
+
+	chain ufw-reject-input {
+	}
+
+	chain ufw-reject-output {
+	}
+
+	chain ufw-reject-forward {
+	}
+
+	chain ufw-track-input {
+	}
+
+	chain ufw-track-output {
+	}
+
+	chain ufw-track-forward {
+	}
+
+	chain INPUT {
+		type filter hook input priority filter; policy accept;
+		counter packets 67 bytes 11340 jump ufw-before-logging-input
+		counter packets 67 bytes 11340 jump ufw-before-input
+		counter packets 6 bytes 344 jump ufw-after-input
+		counter packets 6 bytes 344 jump ufw-after-logging-input
+		counter packets 6 bytes 344 jump ufw-reject-input
+		counter packets 6 bytes 344 jump ufw-track-input
+	}
+
+	chain OUTPUT {
+		type filter hook output priority filter; policy accept;
+		counter packets 14 bytes 732 jump ufw-before-logging-output
+		counter packets 14 bytes 732 jump ufw-before-output
+		counter packets 1 bytes 60 jump ufw-after-output
+		counter packets 1 bytes 60 jump ufw-after-logging-output
+		counter packets 1 bytes 60 jump ufw-reject-output
+		counter packets 1 bytes 60 jump ufw-track-output
+	}
+
+	chain FORWARD {
+		type filter hook forward priority filter; policy accept;
+		counter packets 0 bytes 0 jump ufw-before-logging-forward
+		counter packets 0 bytes 0 jump ufw-before-forward
+		counter packets 0 bytes 0 jump ufw-after-forward
+		counter packets 0 bytes 0 jump ufw-after-logging-forward
+		counter packets 0 bytes 0 jump ufw-reject-forward
+		counter packets 0 bytes 0 jump ufw-track-forward
+	}
+}
+table ip6 filter {
+	chain ufw6-before-logging-input {
+	}
+
+	chain ufw6-before-logging-output {
+	}
+
+	chain ufw6-before-logging-forward {
+	}
+
+	chain ufw6-before-input {
+	}
+
+	chain ufw6-before-output {
+	}
+
+	chain ufw6-before-forward {
+	}
+
+	chain ufw6-after-input {
+	}
+
+	chain ufw6-after-output {
+	}
+
+	chain ufw6-after-forward {
+	}
+
+	chain ufw6-after-logging-input {
+	}
+
+	chain ufw6-after-logging-output {
+	}
+
+	chain ufw6-after-logging-forward {
+	}
+
+	chain ufw6-reject-input {
+	}
+
+	chain ufw6-reject-output {
+	}
+
+	chain ufw6-reject-forward {
+	}
+
+	chain ufw6-track-input {
+	}
+
+	chain ufw6-track-output {
+	}
+
+	chain ufw6-track-forward {
+	}
+
+	chain INPUT {
+		type filter hook input priority filter; policy accept;
+		counter packets 0 bytes 0 jump ufw6-before-logging-input
+		counter packets 0 bytes 0 jump ufw6-before-input
+		counter packets 0 bytes 0 jump ufw6-after-input
+		counter packets 0 bytes 0 jump ufw6-after-logging-input
+		counter packets 0 bytes 0 jump ufw6-reject-input
+		counter packets 0 bytes 0 jump ufw6-track-input
+	}
+
+	chain OUTPUT {
+		type filter hook output priority filter; policy accept;
+		counter packets 0 bytes 0 jump ufw6-before-logging-output
+		counter packets 0 bytes 0 jump ufw6-before-output
+		counter packets 0 bytes 0 jump ufw6-after-output
+		counter packets 0 bytes 0 jump ufw6-after-logging-output
+		counter packets 0 bytes 0 jump ufw6-reject-output
+		counter packets 0 bytes 0 jump ufw6-track-output
+	}
+
+	chain FORWARD {
+		type filter hook forward priority filter; policy accept;
+		counter packets 0 bytes 0 jump ufw6-before-logging-forward
+		counter packets 0 bytes 0 jump ufw6-before-forward
+		counter packets 0 bytes 0 jump ufw6-after-forward
+		counter packets 0 bytes 0 jump ufw6-after-logging-forward
+		counter packets 0 bytes 0 jump ufw6-reject-forward
+		counter packets 0 bytes 0 jump ufw6-track-forward
+	}
+}
+--- host ufw status (必须 inactive) ---
+Status: inactive
+宿主 /etc/ufw 是否被改动: UNCHANGED
+[GUARD sw4-done] mtcopy-gateway=active mtcopy-platform=active nginx=active http=200 -> OK
+
+========== SW4 VERDICT ==========
+A2 专用链封禁语义            => PASS
+A3 裸 iptables 链过 ufw reload => SURVIVED
+A4 after.init 钩子重断言      => PASS
+A5 独立 nft 表过 ufw reload    => SURVIVED
+B  共存封禁语义               => PASS
+B2 共存出网                   => PASS
+C  宿主 /etc/ufw 改动          => UNCHANGED

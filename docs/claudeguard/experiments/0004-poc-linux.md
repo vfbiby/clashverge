@@ -38,3 +38,5 @@
 ## 遗留（→ ovhe 真机轮，ROADMAP P1.5 已标注）
 
 - SW3 systemd 版看门自愈；SW4 ufw/firewalld 真实共存；SW5-B 真网络面（非 loopback）REJECT 对已建连接的 RST 行为；v6 真路由双栈；TUN 全接管；Docker 桥接 DNS 偏置的排除
+
+> **勘误（2026-10-23，PoC-6 真机复核）**：本页 SW5-B「REJECT 对已建连接不秒杀」是**容器 loopback 自回环的内核特例**，真网络面实测 RST 253ms/42ms 到达。语义以 0006 为准。

@@ -1,0 +1,2 @@
+-P OUTPUT ACCEPT
+-A OUTPUT -d fd00:c6::1/128 -p tcp -m tcp --dport 18090 -m comment --comment cg-poc6-v6 -j DROP

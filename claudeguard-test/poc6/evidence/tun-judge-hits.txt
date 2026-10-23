@@ -1,0 +1,2 @@
+time="2026-10-23T18:13:05.790895693Z" level=info msg="[TCP] 198.18.0.1:55878 --> claude.ai:443 match DomainSuffix(claude.ai) using ClaudeExit[anytls-node]"
+time="2026-10-23T18:13:05.990573612Z" level=info msg="[TCP] 198.18.0.1:52432 --> api.anthropic.com:443 match DomainSuffix(anthropic.com) using ClaudeExit[anytls-node]"

@@ -1,0 +1,27 @@
+== mid-experiment host state ==
+2026-10-23T18:14:24+00:00
+-- prod services --
+mtcopy-gateway active=active ActiveEnterTimestamp=Tue 2026-10-20 11:35:46 UTC NRestarts=0
+mtcopy-platform active=active ActiveEnterTimestamp=Tue 2026-10-20 11:35:46 UTC NRestarts=0
+nginx active=active ActiveEnterTimestamp=Sat 2026-10-03 06:57:49 UTC NRestarts=0
+http=200
+-- ufw --
+Status: inactive
+-- host nat --
+-P PREROUTING ACCEPT
+-P INPUT ACCEPT
+-P OUTPUT ACCEPT
+-P POSTROUTING ACCEPT
+-A POSTROUTING -s 10.233.6.0/30 -m comment --comment cg-poc6-nat -j MASQUERADE
+-- host filter --
+-P INPUT ACCEPT
+-P FORWARD ACCEPT
+-P OUTPUT ACCEPT
+-- ip_forward --
+1
+-- netns --
+cgpoc (id: 0)
+-- cg links --
+cgv0@if3         UP             c6:9c:26:1d:23:1e <BROADCAST,MULTICAST,UP,LOWER_UP> 
+-- nft tables --
+table ip nat

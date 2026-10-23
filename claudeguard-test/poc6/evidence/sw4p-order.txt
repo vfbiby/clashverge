@@ -1,0 +1,3 @@
+-P OUTPUT DROP
+-A OUTPUT -j CG-OUT
+-A OUTPUT -j ufw-before-logging-output

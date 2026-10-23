@@ -1,0 +1,3 @@
+-P OUTPUT ACCEPT
+-A OUTPUT -m owner --uid-owner 0 -m comment --comment cg-poc6-v4-exempt -j ACCEPT
+-A OUTPUT -d 10.233.6.1/32 -p tcp -m tcp --dport 18091 -m comment --comment cg-poc6-v4 -j DROP

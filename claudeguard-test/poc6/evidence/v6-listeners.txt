@@ -1,0 +1,2 @@
+LISTEN 0      5         10.233.6.1:18091      0.0.0.0:*    users:(("python3",pid=1025353,fd=3))                                                 
+LISTEN 0      5       [fd00:c6::1]:18090         [::]:*    users:(("python3",pid=1025350,fd=3))                                                 

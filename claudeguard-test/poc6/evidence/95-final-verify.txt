@@ -1,0 +1,39 @@
+== FINAL VERIFY 2026-10-23T18:15:03+00:00 ==
+-- production services --
+mtcopy-gateway active=active uptime=Tue 2026-10-20 11:35:46 UTC NRestarts=0
+mtcopy-platform active=active uptime=Tue 2026-10-20 11:35:46 UTC NRestarts=0
+nginx active=active uptime=Sat 2026-10-03 06:57:49 UTC NRestarts=0
+http=200
+-- ufw --
+Status: inactive
+-- ip_forward --
+0
+-- netfilter diff sizes --
+9-diff-iptables.txt=0B
+9-diff-ip6tables.txt=0B
+9-diff-nft.txt=0B
+9-diff-iproute.txt=0B
+9-diff-hosts-resolv.txt=0B
+-- netns --
+(empty above = ok)
+-- cg/veth --
+none
+-- tun dev --
+none
+-- /etc/netns --
+ls: cannot access '/etc/netns': No such file or directory
+-- unit --
+absent
+-- ufw unit on host --
+active
+enabled
+-- listening 18080/18090/18091/7892/9095 --
+tcp   LISTEN 0      5               10.233.6.1:18091      0.0.0.0:*   
+tcp   LISTEN 0      5               10.233.6.1:18080      0.0.0.0:*   
+tcp   LISTEN 0      5             [fd00:c6::1]:18090         [::]:*   
+-- claudeguard procs --
+1027088 zsh -c cd /root/claudeguard-poc6/evidence diff 01-iptables-baseline.txt 9-iptables-final.txt > 9-diff-iptables.txt; diff 02-ip6tables-baseline.txt 9-ip6tables-final.txt > 9-diff-ip6tables.txt; diff 03-nft-baseline.txt 9-nft-final.txt > 9-diff-nft.txt; diff 05-iproute-baseline.txt 9-iproute-final.txt > 9-diff-iproute.txt { echo "== FINAL VERIFY $(date -Is) ==" echo "-- production services --" for s in mtcopy-gateway mtcopy-platform nginx; do printf "%s active=%s uptime=%s NRestarts=%s\n" "$s" "$(systemctl is-active $s)" "$(systemctl show -p ActiveEnterTimestamp --value $s)" "$(systemctl show -p NRestarts --value $s)"; done printf "http=%s\n" "$(curl -m 3 -s -o /dev/null -w %{http_code} http://127.0.0.1/)" echo "-- ufw --"; ufw status echo "-- ip_forward --"; sysctl -n net.ipv4.ip_forward echo "-- netfilter diff sizes --"; for f in 9-diff-iptables.txt 9-diff-ip6tables.txt 9-diff-nft.txt 9-diff-iproute.txt 9-diff-hosts-resolv.txt; do printf "%s=%sB\n" "$f" "$(wc -c < $f)"; done echo "-- netns --"; ip netns list; echo "(empty above = ok)" echo "-- cg/veth --"; ip -br link | grep -E "^cg" || echo none echo "-- tun dev --"; ip -br link | grep -E "cgtun" || echo none echo "-- /etc/netns --"; ls -la /etc/netns 2>&1 | head -3 echo "-- unit --"; systemctl cat claudeguard-watch-test >/dev/null 2>&1 && echo PRESENT || echo absent echo "-- ufw unit on host --"; systemctl is-active ufw; systemctl is-enabled ufw echo "-- listening 18080/18090/18091/7892/9095 --"; ss -lntu | grep -E ":(18080|18090|18091|7892|9095)\b" || echo none echo "-- claudeguard procs --"; pgrep -af "claudeguard|tunwork|cg-poc6" || echo none echo "-- files modified in /etc last 60min (excl) --"; find /etc -newermt "-60 minutes" -type f 2>/dev/null | head -20; echo "(end)" } | tee 95-final-verify.txt cat 95-final-verify.txt
+1027093 zsh -c cd /root/claudeguard-poc6/evidence diff 01-iptables-baseline.txt 9-iptables-final.txt > 9-diff-iptables.txt; diff 02-ip6tables-baseline.txt 9-ip6tables-final.txt > 9-diff-ip6tables.txt; diff 03-nft-baseline.txt 9-nft-final.txt > 9-diff-nft.txt; diff 05-iproute-baseline.txt 9-iproute-final.txt > 9-diff-iproute.txt { echo "== FINAL VERIFY $(date -Is) ==" echo "-- production services --" for s in mtcopy-gateway mtcopy-platform nginx; do printf "%s active=%s uptime=%s NRestarts=%s\n" "$s" "$(systemctl is-active $s)" "$(systemctl show -p ActiveEnterTimestamp --value $s)" "$(systemctl show -p NRestarts --value $s)"; done printf "http=%s\n" "$(curl -m 3 -s -o /dev/null -w %{http_code} http://127.0.0.1/)" echo "-- ufw --"; ufw status echo "-- ip_forward --"; sysctl -n net.ipv4.ip_forward echo "-- netfilter diff sizes --"; for f in 9-diff-iptables.txt 9-diff-ip6tables.txt 9-diff-nft.txt 9-diff-iproute.txt 9-diff-hosts-resolv.txt; do printf "%s=%sB\n" "$f" "$(wc -c < $f)"; done echo "-- netns --"; ip netns list; echo "(empty above = ok)" echo "-- cg/veth --"; ip -br link | grep -E "^cg" || echo none echo "-- tun dev --"; ip -br link | grep -E "cgtun" || echo none echo "-- /etc/netns --"; ls -la /etc/netns 2>&1 | head -3 echo "-- unit --"; systemctl cat claudeguard-watch-test >/dev/null 2>&1 && echo PRESENT || echo absent echo "-- ufw unit on host --"; systemctl is-active ufw; systemctl is-enabled ufw echo "-- listening 18080/18090/18091/7892/9095 --"; ss -lntu | grep -E ":(18080|18090|18091|7892|9095)\b" || echo none echo "-- claudeguard procs --"; pgrep -af "claudeguard|tunwork|cg-poc6" || echo none echo "-- files modified in /etc last 60min (excl) --"; find /etc -newermt "-60 minutes" -type f 2>/dev/null | head -20; echo "(end)" } | tee 95-final-verify.txt cat 95-final-verify.txt
+-- files modified in /etc last 60min (excl) --
+/etc/default/ufw
+(end)

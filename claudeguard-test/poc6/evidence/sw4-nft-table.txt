@@ -1,0 +1,7 @@
+table inet cg {
+	chain out {
+		type filter hook output priority filter - 10; policy accept;
+		meta skuid 0 accept
+		ip daddr 10.233.6.1 tcp dport 18080 reject with tcp reset
+	}
+}

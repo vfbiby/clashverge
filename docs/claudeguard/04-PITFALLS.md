@@ -50,6 +50,17 @@
 | P22 | 回滚顺序错导致噪音：先杀引擎 → utun 设备消失 → 路由同时消失，再 `route delete` 报 `not in table` | 先 `route delete` 再杀引擎；对外"零残留"判定不受影响但日志会误导排查 | PoC-4 |
 | P23 | **`mihomo -t` 不校验 tun 段的 key**：写错/写不存在的 key 仍报 successful（实测故意写错也过）——不能靠 `-t` 背书 tun 参数正确；另: v1.19.32 源码 `parseTun()` 把 tun 地址强制为 fake-ip range 的 `/30`（198.18.0.1/30，YAML 里 `inet4-address` 不生效）；`auto-route: true + route-address: [198.18.0.0/16]` 在 darwin 会因重复写 /30 connected route 报 EEXIST 导致启动失败 | tun 参数逐项对照源码/官方文档；窄路由优先用 `auto-route: false` + 脚本 `route add -net 198.18.0.0/16 <utun 网关>`（确定性/可验证/可回滚）；tun 地址别手写 | PoC-5 备料源码核对（2026-10-24，并入 PoC-4 台账） |
 
+## Linux 真机（PoC-6）
+
+| 编号 | 坑 | 正确姿势 | 出处 |
+|---|---|---|---|
+| P24 | systemd `Restart=always` **连 `exit 0` 也会拉起**（NRestarts 0→2 实测）——看门"停机文件→自杀"的优雅退出在 systemd 托管下会变成重启风暴 | 停机语义 = 显式 `systemctl stop`，或 unit 加 `RestartPreventExitStatus=0`；"停机文件"只作为看门循环内部信号，不能当停止手段 | PoC-6 SW3 |
+| P25 | ufw 的 `default`/`allow` 命令会写 **`/etc/default/ufw`**（不在 `/etc/ufw` 目录内）——只快照 `/etc/ufw` 会漏；另：`MANAGE_BUILTINS=yes` 的宿主会 flush 外部链 | 快照范围 = `/etc/ufw` + `/etc/default/ufw`；外部链存活判定先读 `MANAGE_BUILTINS`；产品默认自带 re-assert（ADR-0005） | PoC-6 SW4' |
+| P26 | Ubuntu 26.04 的 **uutils coreutils**：`date +%s%3N` 不截断，毫秒计时静默失真（首轮计时错） | 计时统一用手写截断：`printf '%s' "${ts:0:13}"` 或 python time；脚本里给计时函数做自检用例 | PoC-6 首轮 |
+| P27 | `ip netns delete` 之后 **veth 对端可能残留**（同一 netns 内删除时 peer 留在宿主） | cleanup 显式 `ip link del <host-side>`；收尾用 `ip link \| grep cg` 断言清零 | PoC-6 cleanup |
+| P28 | 引擎二进制的**架构错配**（darwin 包内的 linux-arm64 vs 真机 x86_64）——sha256 校验通过≠能跑 | 安装器/实验包必须 `uname -m` 探测后取对应 release；sha256 校验与 arch 校验双闸 | PoC-6 资产上传 |
+| P29 | **容器 loopback 场景不能外推内核路径结论**：REJECT tcp-reset 对"已建连接"在 loopback 下不秒杀（35s 残留），真网络面 253ms 内 RST——容器里用 loopback 测"已建连接/内核语义"会得出反向结论 | 涉及 conntrack/已建连接/内核路径的验证一律在真网络面（netns+veth 即可）做；loopback 只用于协议默认行为 | PoC-6 SW5-B' 推翻 PoC-4 |
+
 ## 复现资产
 
 - PoC-1：`claudeguard-test/pf-test.sh`（三重 trap 自动回滚）+ `log.txt`

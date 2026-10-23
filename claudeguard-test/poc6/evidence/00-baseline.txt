@@ -1,0 +1,18 @@
+== date ==
+2026-10-23T17:54:46+00:00
+== hostname ==
+vps-7aaa3e0d
+== services ==
+mtcopy-gateway: active
+mtcopy-platform: active
+nginx: active
+== http ==
+  % Total    % Received % Xferd  Average Speed  Time    Time    Time   Current
+                                 Dload  Upload  Total   Spent   Left   Speed
+  0      0   0      0   0      0      0      0                              0100    615 100    615   0      0 865.3k      0                              0100    615 100    615   0      0 768.9k      0                              0100    615 100    615   0      0 688.7k      0                              0
+200
+== ufw ==
+Status: inactive
+== sysctl ==
+net.ipv4.ip_forward = 0
+net.ipv6.conf.all.forwarding = 0

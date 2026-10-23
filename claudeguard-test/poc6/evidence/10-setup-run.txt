@@ -1,0 +1,30 @@
+
+========== PHASE-0 BASELINE ==========
+[GUARD setup-start] mtcopy-gateway=active mtcopy-platform=active nginx=active http=200 -> OK
+pre-setup snapshot: iptables=0B nft=0B ip_forward=0
+
+========== PHASE-1 netns + veth (v4 10.233.6.0/30 / v6 ULA fd00:c6::/64) ==========
+--- ns addresses ---
+lo               UNKNOWN        127.0.0.1/8 ::1/128 
+cgv1@if4         UP             10.233.6.2/30 fd00:c6::2/64 fe80::a4dc:53ff:fe53:1afd/64 
+--- ns routes ---
+default via 10.233.6.1 dev cgv1 
+10.233.6.0/30 dev cgv1 proto kernel scope link src 10.233.6.2 
+fd00:c6::/64 dev cgv1 proto kernel metric 256 pref medium
+fd00:c6::/64 dev cgv1 metric 1024 pref medium
+fe80::/64 dev cgv1 proto kernel metric 256 pref medium
+
+========== PHASE-2 出网 NAT (host 侧临时规则, 带 cg- 标记, 收尾删净) ==========
+net.ipv4.ip_forward = 1
+-P POSTROUTING ACCEPT
+-A POSTROUTING -s 10.233.6.0/30 -m comment --comment cg-poc6-nat -j MASQUERADE
+ip_forward now: 1
+
+========== PHASE-3 连通性验收 ==========
+ns -> https://example.org = 200
+104.20.26.136
+172.66.157.237
+
+========== PHASE-4 快照(实验基线, 收尾 diff 对照用) ==========
+[GUARD setup-done] mtcopy-gateway=active mtcopy-platform=active nginx=active http=200 -> OK
+setup OK

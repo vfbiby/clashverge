@@ -1,0 +1,8 @@
+动作                      | CG-OUT 链 | 钩子 | 独立 nft 表 | 语义
+--------------------------+-----------+------+-------------+------
+初始                      | 见上逐行记录
+ufw reload                | 记录于 30-sw4-run.txt A3
+ufw disable               | 见本次输出
+ufw enable                | 见本次输出
+ufw reset                 | 见本次输出
+ufw enable + after.init   | 见本次输出

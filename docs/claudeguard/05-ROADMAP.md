@@ -12,13 +12,9 @@
 2. **Windows WFP PoC**：在 Windows 机器/VM 上用 `Fwpm*` API 实现"block 全体 + 高权重 sublayer 豁免我们的 exe"，并验证与 PoC-1 等价的行为。
    验收：普通程序直连被拦 + 豁免 exe 通 + 重启后规则持久/清理行为符合预期。
 
-## P1.5 · Linux 验证（PoC-4）✅ 容器轮完成（2026-10-24，判定表见 [experiments/0004](./experiments/0004-poc-linux.md)）
+## P1.5 · Linux 验证 ✅ 真机轮完成（2026-10-23，PoC-6 五项全 PASS：SW3 systemd 自愈 2.23s / SW4' ufw 六动作零冲突 / SW5-B' 真网面 RST 253ms / V6 双栈同构 / TUN 裸进程接管 33.7s+36ms）。详见 [experiments/0006](./experiments/0006-poc-linux-realmachine.md)；规则策略决策 [ADR-0005](./adr/0005-linux-rule-strategy.md)。
 
-**容器轮结论**：三平面全部实证——iptables `-m owner` 豁免 + **首匹配重排预判实证**（豁免必须缀在 DROP 之前）、`REJECT tcp-reset` 比 DROP 快 ~2250 倍（原生快失败）、conntrack `ESTABLISHED ACCEPT` 产品语义落地、看门 +29s/+0.0007s 与 macOS 同形、**mihomo config 逐字节零改动跨平台**。遗留项 → ovhe 真机轮（该机仍需所有者核实 host key 变更）：
-- [ ] **SW3** systemd unit 版看门自愈（`Restart=always` + 停机信号语义）
-- [ ] **SW4'** ufw/firewalld 真实共存（专用 chain 挂钩不被发行版栈覆盖）
-- [ ] **SW5-B'** 非回环网络面 REJECT 对已建连接的 RST 行为复核
-- [ ] **真路由 v6 双栈** + TUN 全接管（netfilter 与 tun 路由配合）
+**未覆盖 → 并入 P2/后续**：真实公网 v6 出口；systemd unit 正式形态（`User=monetafw`/enable/24h）；`MANAGE_BUILTINS=yes` flush 实测；firewalld/纯 nft 发行版；`DEFAULT_OUTPUT_POLICY=DROP` 持久化；TUN fwmark 全接管；systemd-resolved per-link；性能/并发；真实 relay 健康。
 
 ## P2 · 产品骨架（立项开发第一步）
 

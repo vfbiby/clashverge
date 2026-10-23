@@ -1,0 +1,6 @@
+WATCH 2026-10-23 18:13:06 probe=200 claude_exit=anytls-node injected=0
+WATCH 2026-10-23 18:13:24 probe=000 claude_exit=dead injected=0
+INJECT-REJECT 2026-10-23 18:13:42 probe=000 claude_exit=dead
+WATCH 2026-10-23 18:13:42 probe=000 claude_exit=REJECT injected=1
+INJECT-REJECT 2026-10-23 18:13:42 probe=000 claude_exit=dead
+RELEASE 2026-10-23 18:14:12 probe=200 claude_exit=REJECT

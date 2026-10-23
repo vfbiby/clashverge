@@ -1,0 +1,85 @@
+# PoC-6 · TUN 窄通道配置 (netns cgpoc 内运行)
+# 与 poc4/config-tun.yaml 的差别: dns.listen 改 127.0.0.1:53(ns 内 53 空闲), log-level info,
+# tun.device 固定 cgtun0, auto-route=false (P23: 绝不自动抢路由, 由脚本手工 ip route add 198.18.0.0/16)
+mixed-port: 7892
+allow-lan: false
+bind-address: '127.0.0.1'
+mode: rule
+log-level: info
+external-controller: 127.0.0.1:9095
+secret: ''
+
+profile:
+  store-selected: false
+  store-fake-ip: false
+
+tun:
+  enable: true
+  device: cgtun0
+  stack: gvisor
+  auto-route: false
+  auto-redirect: false
+  mtu: 1500
+  dns-hijack:
+    - 'any:53'
+
+dns:
+  enable: true
+  prefer-h3: false
+  listen: 127.0.0.1:53
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  # 最小化白名单: 仅 claude 系进 fake-ip 池, 其余真实解析(零侵入验证点)
+  fake-ip-filter:
+    - '+.claude.ai'
+    - '+.claude.com'
+    - '+.clau.de'
+    - '+.anthropic.com'
+    - '+.claudeusercontent.com'
+  fake-ip-filter-mode: whitelist
+  nameserver:
+    - 'udp://223.5.5.5'
+    - 'udp://119.29.29.29'
+  default-nameserver:
+    - '223.5.5.5'
+
+proxies:
+  - name: anytls-node
+    type: anytls
+    server: 154.53.75.226
+    port: 8450
+    password: 7c62cf6b-1bb1-48f5-b308-761c09ac072e
+    sni: anytls6.node10.local
+    skip-cert-verify: true
+  # 死节点: 127.0.0.1:9 连接即刻被本地 RST
+  - name: dead
+    type: socks5
+    server: 127.0.0.1
+    port: 9
+  - name: direct
+    type: direct
+
+proxy-groups:
+  - name: ClaudeExit
+    type: select
+    proxies:
+      - anytls-node
+      - dead
+      - REJECT
+      - DIRECT
+  - name: EdgeProbe
+    type: select
+    proxies:
+      - direct
+      - dead
+
+rules:
+  - 'DOMAIN-SUFFIX,example.com,EdgeProbe'
+  - 'DOMAIN-SUFFIX,example.org,EdgeProbe'
+  - 'DOMAIN-SUFFIX,claude.ai,ClaudeExit'
+  - 'DOMAIN-SUFFIX,claude.com,ClaudeExit'
+  - 'DOMAIN-SUFFIX,clau.de,ClaudeExit'
+  - 'DOMAIN-SUFFIX,anthropic.com,ClaudeExit'
+  - 'DOMAIN-SUFFIX,claudeusercontent.com,ClaudeExit'
+  - 'IP-CIDR,198.18.0.0/16,ClaudeExit,no-resolve'
+  - 'MATCH,DIRECT'

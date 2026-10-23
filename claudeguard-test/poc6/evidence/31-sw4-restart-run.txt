@@ -1,0 +1,49 @@
+
+========== SW4-A6-0 准备 ==========
+[GUARD sw4r-start] mtcopy-gateway=active mtcopy-platform=active nginx=active http=200 -> OK
+ufw(ns)=Status: active  host=Status: inactive
+
+========== SW4-A6-1 装载两条机制 ==========
+iptables: -N CG-OUT -A CG-OUT -m owner --uid-owner 0 -j ACCEPT -A CG-OUT -d 10.233.6.1/32 -p tcp -m tcp --dport 18080 -j REJECT --reject-with tcp-reset 
+nft: table inet cg { 	chain out { 		type filter hook output priority filter - 10; policy accept; 		meta skuid 0 accept 		ip daddr 10.233.6.1 tcp dport 18080 reject w
+语义: root=code=200 rc=0 nobody=code=000 rc=7
+已摘 iptables 钩子(仅留 nft 表), 语义: root=code=200 rc=0 nobody=code=000 rc=7
+
+========== SW4-A6-2 ufw --force disable (完整 stop: flush_builtins) ==========
+Firewall stopped and disabled on system startup
+disable 后: iptables CG-OUT rc=0 (链体/规则可能被 -F 保留? 见下)
+-N CG-OUT
+-A CG-OUT -m owner --uid-owner 0 -j ACCEPT
+-A CG-OUT -d 10.233.6.1/32 -p tcp -m tcp --dport 18080 -j REJECT --reject-with tcp-reset
+disable 后: nft inet cg rc=0
+table inet cg {
+	chain out {
+		type filter hook output priority filter - 10; policy accept;
+		meta skuid 0 accept
+		ip daddr 10.233.6.1 tcp dport 18080 reject with tcp reset
+	}
+disable 后语义(nft-only): root=code=200 rc=0 nobody=code=000 rc=7
+
+========== SW4-A6-3 ufw --force enable (完整 start: 重新装框架链) ==========
+Firewall is active and enabled on system startup
+enable 后: OUTPUT 中 CG-OUT 钩子数=0 ; CG-OUT 链查询 rc=0 ; nft inet cg rc=0
+enable 后 nft 表:
+table inet cg {
+	chain out {
+		type filter hook output priority filter - 10; policy accept;
+		meta skuid 0 accept
+		ip daddr 10.233.6.1 tcp dport 18080 reject with tcp reset
+	}
+enable 后语义(nft-only): root=code=200 rc=0 nobody=code=000 rc=7
+重断言后: root=code=200 rc=0 nobody=code=000 rc=7
+
+========== SW4-A6-4 判定 ==========
+iptables 专用链在 ufw disable/enable(完整重启) 后 => SURVIVED
+独立 nft 表在 ufw disable/enable 后 => SURVIVED
+iptables 专用链在 ufw reload 后 => SURVIVED (见 30-sw4-run.txt A3)
+
+========== SW4-A6-5 拆除 ==========
+ns 残留: iptables=[-P OUTPUT ACCEPT -A OUTPUT -j ufw-before-logging-output -A OUTPUT -j ufw-before-output -A OUTPUT -j ufw-after-output -A OUTPUT -j ufw-after-logging-output -A OUTPUT -j ufw-reject-output -A OUTPUT -j ufw-track-output ] nft_cg=[Error: No such file or directory]
+host ufw: Status: inactive
+宿主 /etc/ufw: UNCHANGED
+[GUARD sw4r-done] mtcopy-gateway=active mtcopy-platform=active nginx=active http=200 -> OK

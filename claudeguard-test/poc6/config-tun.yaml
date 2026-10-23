@@ -1,0 +1,94 @@
+# PoC-4 (P1a) TUN 系统级接管 —— root 实弹配置 (mihomo v1.19.32)
+# 与 config-prevalid.yaml 的唯一差别: dns.listen 53 (root 专属) + 启用 tun 入站
+# 实验语义: 系统 DNS 指向 127.0.0.2 → claude 系发 fake-ip → 窄路由(仅 198.18.0.0/16)进 utun → 域名裁判
+mixed-port: 7892
+allow-lan: false
+bind-address: '127.0.0.1'
+mode: rule
+log-level: debug
+external-controller: 127.0.0.1:9095
+secret: ''
+
+profile:
+  store-selected: false
+  store-fake-ip: false
+
+# 金丝雀: 只有本引擎知道这个名字 -> 用来证明系统 DNS 真的被我们接管
+hosts:
+  'canary.monetafw.internal': 198.18.254.251
+
+# TUN 窄通道: auto-route=false (绝不抢默认路由); 198.18.0.0/16 由 root 脚本手工 route add
+tun:
+  enable: true
+  stack: gvisor
+  auto-route: false
+  auto-redirect: false
+
+dns:
+  enable: true
+  prefer-h3: false
+  listen: 127.0.0.1:1053
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  # 最小化白名单模式: 仅 claude 系进 fake-ip 池, 其余全部真实解析 (零侵入命根)
+  fake-ip-filter:
+    - '+.claude.ai'
+    - '+.claude.com'
+    - '+.clau.de'
+    - '+.anthropic.com'
+    - '+.claudeusercontent.com'
+  fake-ip-filter-mode: whitelist
+  nameserver:
+    - 'udp://223.5.5.5'
+    - 'udp://119.29.29.29'
+  default-nameserver:
+    - '223.5.5.5'
+
+proxies:
+  # 健康出口 (隧道通, 边缘可能切; 规则面命中=实测口径, 边缘结果如实记录)
+  - name: anytls-node
+    type: anytls
+    server: 154.53.75.226
+    port: 8450
+    password: 7c62cf6b-1bb1-48f5-b308-761c09ac072e
+    sni: anytls6.node10.local
+    skip-cert-verify: true
+  # 死节点: 127.0.0.1:9 连接即刻被本地 RST
+  - name: dead
+    type: socks5
+    server: 127.0.0.1
+    port: 9
+  # direct 扮演探针"健康出口" (P1a 不依赖真实 relay 健康; TUN 路径下同样成立)
+  - name: direct
+    type: direct
+
+proxy-groups:
+  # 专属出口: 看门状态机的操作对象 (REST PUT /proxies/ClaudeExit)
+  - name: ClaudeExit
+    type: select
+    proxies:
+      - anytls-node
+      - dead
+      - REJECT
+      - DIRECT
+  # 探活边缘: 看门探针专用 (永不含 REJECT)
+  - name: EdgeProbe
+    type: select
+    proxies:
+      - direct
+      - dead
+
+rules:
+  # 探针域 (看门真值探针)
+  - 'DOMAIN-SUFFIX,example.com,EdgeProbe'
+  - 'DOMAIN-SUFFIX,example.org,EdgeProbe'
+  # claude 系: 唯一出口
+  - 'DOMAIN-SUFFIX,claude.ai,ClaudeExit'
+  - 'DOMAIN-SUFFIX,claude.com,ClaudeExit'
+  - 'DOMAIN-SUFFIX,clau.de,ClaudeExit'
+  - 'DOMAIN-SUFFIX,anthropic.com,ClaudeExit'
+  - 'DOMAIN-SUFFIX,claudeusercontent.com,ClaudeExit'
+  # 兜底: 198.18.0.0/16 里的裸 IP 连接 (含 hosts 诱饵 198.18.254.254) 一律进裁判
+  - 'IP-CIDR,198.18.0.0/16,ClaudeExit,no-resolve'
+  # 其余全部直连
+  - 'MATCH,DIRECT'

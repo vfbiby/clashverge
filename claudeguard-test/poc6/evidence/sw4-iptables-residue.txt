@@ -1,0 +1,39 @@
+-P INPUT ACCEPT
+-P FORWARD ACCEPT
+-P OUTPUT ACCEPT
+-N ufw-after-forward
+-N ufw-after-input
+-N ufw-after-logging-forward
+-N ufw-after-logging-input
+-N ufw-after-logging-output
+-N ufw-after-output
+-N ufw-before-forward
+-N ufw-before-input
+-N ufw-before-logging-forward
+-N ufw-before-logging-input
+-N ufw-before-logging-output
+-N ufw-before-output
+-N ufw-reject-forward
+-N ufw-reject-input
+-N ufw-reject-output
+-N ufw-track-forward
+-N ufw-track-input
+-N ufw-track-output
+-A INPUT -j ufw-before-logging-input
+-A INPUT -j ufw-before-input
+-A INPUT -j ufw-after-input
+-A INPUT -j ufw-after-logging-input
+-A INPUT -j ufw-reject-input
+-A INPUT -j ufw-track-input
+-A FORWARD -j ufw-before-logging-forward
+-A FORWARD -j ufw-before-forward
+-A FORWARD -j ufw-after-forward
+-A FORWARD -j ufw-after-logging-forward
+-A FORWARD -j ufw-reject-forward
+-A FORWARD -j ufw-track-forward
+-A OUTPUT -j ufw-before-logging-output
+-A OUTPUT -j ufw-before-output
+-A OUTPUT -j ufw-after-output
+-A OUTPUT -j ufw-after-logging-output
+-A OUTPUT -j ufw-reject-output
+-A OUTPUT -j ufw-track-output

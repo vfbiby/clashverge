@@ -1,0 +1,14 @@
+== 宿主文件触碰审计 2026-10-23T18:15:40+00:00 ==
+-- dpkg -V ufw (空输出 = 包内文件内容全部一致) --
+rc=0
+-- md5 对照 --
+a921dd9d167380b04de4bc911915ea44  /etc/default/ufw
+44eab12c7b5c683d750b83dcffb6cccb  /etc/ufw/ufw.conf
+recorded: a921dd9d167380b04de4bc911915ea44  etc/default/ufw
+recorded: 44eab12c7b5c683d750b83dcffb6cccb  etc/ufw/ufw.conf
+-- /etc/ufw 清单 diff --
+(empy = /etc/ufw 未变)
+-- ufw 状态 --
+Status: inactive
+-- 结论 --
+/etc/default/ufw: 内容=发行版原样(dpdq -V 全绿), 仅 mtime 被 ufw default deny/allow 重写同内容时更新

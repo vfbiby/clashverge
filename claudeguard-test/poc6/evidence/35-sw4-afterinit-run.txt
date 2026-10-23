@@ -1,0 +1,17 @@
+
+========== SW4-A9 准备 ==========
+[GUARD sw4a9-start] mtcopy-gateway=active mtcopy-platform=active nginx=active http=200 -> OK
+  6:ENABLED=yes
+
+========== SW4-A9 框架路径 start/stop ==========
+start rc=0
+stop rc=0
+--- after.init 调用记录 ---
+after.init start 2026-10-23 18:16:03
+after.init stop 2026-10-23 18:16:04
+调用次数=2 (start 一次 + stop 一次 应为 2)
+>>> SW4-A9 after.init 钩子在框架路径被调用 => PASS
+
+========== SW4-A9 拆除 ==========
+netns: []  ufw: Status: inactive
+[GUARD sw4a9-done] mtcopy-gateway=active mtcopy-platform=active nginx=active http=200 -> OK

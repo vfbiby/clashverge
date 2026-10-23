@@ -1,0 +1,78 @@
+
+========== SW3-0 准备 ==========
+[GUARD sw3-start] mtcopy-gateway=active mtcopy-platform=active nginx=active http=200 -> OK
+drwxr-xr-x 2 root root 40 Oct 23 18:00 /run/systemd/system
+--- unit ---
+  # /run/systemd/system/claudeguard-watch-test.service
+  [Unit]
+  Description=claudeguard PoC-6 watchdog restart test (transient)
+  After=network.target
+  
+  [Service]
+  Type=simple
+  ExecStart=/root/claudeguard-poc6/watch-stub.sh
+  Restart=always
+  RestartSec=2
+  KillSignal=SIGTERM
+  TimeoutStopSec=5
+  
+  
+  [Install]
+  WantedBy=multi-user.target
+
+========== SW3-A kill -9 -> 自动重启 (Restart=always / RestartSec=2) ==========
+initial: active=active MainPID=1012104 NRestarts=0
+after kill -9: active=active MainPID=1012199 NRestarts=1 elapsed=2230ms
+Oct 23 18:00:49 vps-7aaa3e0d systemd[1]: claudeguard-watch-test.service: Deactivated successfully.
+Oct 23 18:00:51 vps-7aaa3e0d systemd[1]: claudeguard-watch-test.service: Scheduled restart job, restart counter is at 4.
+Oct 23 18:00:51 vps-7aaa3e0d systemd[1]: Started claudeguard-watch-test.service - claudeguard PoC-6 watchdog restart test (transient).
+Oct 23 18:00:51 vps-7aaa3e0d watch-stub.sh[1011663]: STOPFILE seen, clean exit 0 (2026-10-23 18:00:51)
+Oct 23 18:00:51 vps-7aaa3e0d systemd[1]: claudeguard-watch-test.service: Deactivated successfully.
+Oct 23 18:00:54 vps-7aaa3e0d systemd[1]: claudeguard-watch-test.service: Scheduled restart job, restart counter is at 5.
+Oct 23 18:00:54 vps-7aaa3e0d systemd[1]: Started claudeguard-watch-test.service - claudeguard PoC-6 watchdog restart test (transient).
+Oct 23 18:00:54 vps-7aaa3e0d watch-stub.sh[1011666]: STOPFILE seen, clean exit 0 (2026-10-23 18:00:54)
+Oct 23 18:00:54 vps-7aaa3e0d systemd[1]: claudeguard-watch-test.service: Deactivated successfully.
+Oct 23 18:00:55 vps-7aaa3e0d systemd[1]: Stopped claudeguard-watch-test.service - claudeguard PoC-6 watchdog restart test (transient).
+Oct 23 18:00:55 vps-7aaa3e0d systemd[1]: /run/systemd/system/claudeguard-watch-test.service:15: Unknown key 'RestartPreventExitStatus' in section [Install], ignoring.
+Oct 23 18:00:55 vps-7aaa3e0d systemd[1]: /run/systemd/system/claudeguard-watch-test.service:15: Unknown key 'RestartPreventExitStatus' in section [Install], ignoring.
+Oct 23 18:00:55 vps-7aaa3e0d systemd[1]: /run/systemd/system/claudeguard-watch-test.service:15: Unknown key 'RestartPreventExitStatus' in section [Install], ignoring.
+Oct 23 18:00:56 vps-7aaa3e0d systemd[1]: /run/systemd/system/claudeguard-watch-test.service:15: Unknown key 'RestartPreventExitStatus' in section [Install], ignoring.
+Oct 23 18:00:56 vps-7aaa3e0d systemd[1]: /run/systemd/system/claudeguard-watch-test.service:15: Unknown key 'RestartPreventExitStatus' in section [Install], ignoring.
+Oct 23 18:01:47 vps-7aaa3e0d systemd[1]: Started claudeguard-watch-test.service - claudeguard PoC-6 watchdog restart test (transient).
+Oct 23 18:01:47 vps-7aaa3e0d watch-stub.sh[1012104]: watchdog heartbeat pid=1012104 2026-10-23 18:01:47
+Oct 23 18:01:48 vps-7aaa3e0d watch-stub.sh[1012104]: watchdog heartbeat pid=1012104 2026-10-23 18:01:48
+Oct 23 18:01:49 vps-7aaa3e0d watch-stub.sh[1012104]: watchdog heartbeat pid=1012104 2026-10-23 18:01:49
+Oct 23 18:01:50 vps-7aaa3e0d watch-stub.sh[1012117]: date: write error: Broken pipe (os error 32)
+Oct 23 18:01:50 vps-7aaa3e0d systemd[1]: claudeguard-watch-test.service: Main process exited, code=killed, status=9/KILL
+Oct 23 18:01:50 vps-7aaa3e0d systemd[1]: claudeguard-watch-test.service: Failed with result 'signal'.
+Oct 23 18:01:52 vps-7aaa3e0d systemd[1]: claudeguard-watch-test.service: Scheduled restart job, restart counter is at 1.
+Oct 23 18:01:52 vps-7aaa3e0d systemd[1]: Started claudeguard-watch-test.service - claudeguard PoC-6 watchdog restart test (transient).
+Oct 23 18:01:52 vps-7aaa3e0d watch-stub.sh[1012199]: watchdog heartbeat pid=1012199 2026-10-23 18:01:52
+>>> SW3-A PASS: kill -9 后 2230ms 自愈 (NRestarts 0->1)
+[GUARD sw3-after-restart] mtcopy-gateway=active mtcopy-platform=active nginx=active http=200 -> OK
+
+========== SW3-B systemctl stop -> 不再拉起 ==========
+after stop(+6s): active=inactive stub_procs=0 (NRestarts 在 stop 后被 systemd 清零, 不作判据)
+>>> SW3-B PASS: stop 后 6s 无重启, 无残留进程
+
+========== SW3-C 停机文件语义: Restart=always 下 exit 0 会不会被拉起? ==========
+C1 initial: active=active NRestarts=0
+C1 (Restart=always, 无 RestartPreventExitStatus): active=activating procs=0 NRestarts=0->2
+>>> C1 结论: 会拉起(停机文件单独无效)
+  13:RestartPreventExitStatus=0
+C2 initial: active=active NRestarts=0
+C2 (+RestartPreventExitStatus=0): active=inactive procs=0 NRestarts=0->0
+>>> SW3-C PASS: exit 0 不被拉起, 停机文件语义成立
+
+========== SW3-D 拆除 unit ==========
+>>> SW3-D PASS: unit 已从 systemd 视图移除
+  ls: cannot access '/run/systemd/system/claudeguard-watch-test.service': No such file or directory
+残留进程: 0
+[GUARD sw3-done] mtcopy-gateway=active mtcopy-platform=active nginx=active http=200 -> OK
+
+========== SW3 VERDICT ==========
+SW3-A kill -9 自愈(<=5s)     => PASS
+SW3-B stop 后不拉起           => PASS
+SW3-C1 停机文件单独(always)   => EXPECTED (会拉起(停机文件单独无效))
+SW3-C 停机文件+PreventExit0  => PASS
+SW3-D unit 移除零残留         => PASS

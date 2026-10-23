@@ -1,0 +1,3 @@
+default via 57.129.160.1 dev ens3 proto dhcp src 57.129.160.113 metric 100 
+57.129.160.1 dev ens3 proto dhcp scope link src 57.129.160.113 metric 100 
+213.186.33.99 via 57.129.160.1 dev ens3 proto dhcp src 57.129.160.113 metric 100 
