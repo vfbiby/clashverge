@@ -16,7 +16,11 @@
 
 **未覆盖 → 并入 P2/后续**：真实公网 v6 出口；systemd unit 正式形态（`User=monetafw`/enable/24h）；`MANAGE_BUILTINS=yes` flush 实测；firewalld/纯 nft 发行版；`DEFAULT_OUTPUT_POLICY=DROP` 持久化；TUN fwmark 全接管；systemd-resolved per-link；性能/并发；真实 relay 健康。
 
-## P2 · 产品骨架（立项开发第一步）
+## P2 · 产品骨架（立项开发第一步）——进行中
+
+**2026-10-24 起步**：macOS v0.1 GUI 原型落地（`apps/claudeguard/`，egui + root 守护 + pf 执行层）：
+自动/强制封禁/放行三模式、通路健康探测、IP 自动刷新、事件日志、一键自测；实测直连封禁/还原/自愈。
+已知边界：pf 仅封直连，远程出口代理链路需 v0.2 域名平面（引擎）补齐。
 
 1. **封禁库 v1**：claude/anthropic 全子域枚举（含遥测域、DoH 墙、AAAA 清单）+ 生成器脚本 → 产出引擎配置与 hosts 兜底块。验收：单脚本重建两份产物；diff 稳定。
    - 注意：Claude Code 实际出网面需要一次实测盘点（开引擎日志观察一个完整 Claude Code 会话触达的全部域名）作为库的种子。
