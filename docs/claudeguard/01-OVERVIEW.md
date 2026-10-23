@@ -42,6 +42,7 @@ hosts 方案的四宗罪（也是立项动机）：
 | [04-PITFALLS.md](./04-PITFALLS.md) | 坑账：平台差异与易错点，滚动追加 |
 | [05-ROADMAP.md](./05-ROADMAP.md) | 待验证靶子与验收口径 |
 | [experiments/](./experiments/) | PoC 实验记录（正文精选 + 原始证据链接） |
+| [07-LINUX-MAPPING.md](./07-LINUX-MAPPING.md) | Linux 机制映射（已实测闭环） |
 | [GLOSSARY.md](./GLOSSARY.md) | 术语表 |
 
 ## 证据资产（本仓库内）

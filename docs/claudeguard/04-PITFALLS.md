@@ -61,6 +61,12 @@
 | P28 | 引擎二进制的**架构错配**（darwin 包内的 linux-arm64 vs 真机 x86_64）——sha256 校验通过≠能跑 | 安装器/实验包必须 `uname -m` 探测后取对应 release；sha256 校验与 arch 校验双闸 | PoC-6 资产上传 |
 | P29 | **容器 loopback 场景不能外推内核路径结论**：REJECT tcp-reset 对"已建连接"在 loopback 下不秒杀（35s 残留），真网络面 253ms 内 RST——容器里用 loopback 测"已建连接/内核语义"会得出反向结论 | 涉及 conntrack/已建连接/内核路径的验证一律在真网络面（netns+veth 即可）做；loopback 只用于协议默认行为 | PoC-6 SW5-B' 推翻 PoC-4 |
 
+## 归档流程
+
+| 编号 | 坑 | 正确姿势 | 出处 |
+|---|---|---|---|
+| P30 | **`git add <dir>` 会把工作区里的"删除"一起吞进提交**：断线/撞车后误删的文档被归档 commit 顺手带走（实证：07-LINUX-MAPPING 的 36 行删除混进了 PoC-4 归档提交） | 归档提交前逐项过 `git status`（尤其 `D` 项）确认"删除=有意"；批量 add 后 `git diff --cached --stat` 核对；断线恢复时先 `git fsck`/对照台账清单查缺 | PoC-6 归档时发现 |
+
 ## 复现资产
 
 - PoC-1：`claudeguard-test/pf-test.sh`（三重 trap 自动回滚）+ `log.txt`
