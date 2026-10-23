@@ -44,8 +44,8 @@ get_proxy_field(){ # $1=web|secure $2=field(Enabled|Server|Port)
 }
 
 capture_proxy(){
+  [ -n "$SVC" ] || detect_service
   [ -s "$PROXYB" ] && return 0
-  detect_service
   {
     echo "svc=$SVC"
     echo "web_enabled=$(get_proxy_field web Enabled)"
@@ -289,6 +289,14 @@ run)
       if [ "$APPLIED" = "1" ]; then
         full_disarm
         LAST_SIG=""
+      fi
+    fi
+    if [ "$MODE" = "armed" ] && [ "$APPLIED" = "1" ] && [ $((TICK % 5)) -eq 0 ]; then
+      cur_s=$(networksetup -getwebproxy "$SVC" 2>/dev/null | awk -F': ' '$1=="Server"{print $2; exit}')
+      cur_p=$(networksetup -getwebproxy "$SVC" 2>/dev/null | awk -F': ' '$1=="Port"{print $2; exit}')
+      if [ "$cur_s" != "127.0.0.1" ] || [ "$cur_p" != "$ENGINE_PORT" ]; then
+        log "system proxy drifted (${cur_s:-?}:${cur_p:-?}) -> re-takeover"
+        set_sys_proxy
       fi
     fi
     TICK=$((TICK+1))
