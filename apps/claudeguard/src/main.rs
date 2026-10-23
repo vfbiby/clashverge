@@ -12,7 +12,8 @@ const STATE_DIR: &str = "/tmp/claudeguard";
 const CONTROL: &str = "/tmp/claudeguard/control";
 const STATUS: &str = "/tmp/claudeguard/status";
 const PIDFILE: &str = "/tmp/claudeguard/daemon.pid";
-const GUARDD: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/helper/guardd.sh");
+const INSTALLER: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/helper/install-daemon.sh");
+const UNINSTALLER: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/helper/uninstall-daemon.sh");
 
 const DEFAULT_DOMAINS: &str =
     "claude.ai\nclaude.com\nclau.de\nanthropic.com\nclaudeusercontent.com";
@@ -295,7 +296,7 @@ impl App {
     }
 
     fn do_start_daemon(&mut self) {
-        let script = format!("'{}' start", GUARDD);
+        let script = format!("'{}'", INSTALLER);
         match run_admin(&script) {
             Ok(out) => {
                 push_log(&self.shared, format!("守护启动: {}", out));
@@ -306,7 +307,7 @@ impl App {
     }
 
     fn do_stop_daemon(&mut self) {
-        let script = format!("'{}' stop", GUARDD);
+        let script = format!("'{}'", UNINSTALLER);
         match run_admin(&script) {
             Ok(out) => push_log(&self.shared, format!("守护停止: {}", out)),
             Err(e) => push_log(&self.shared, format!("守护停止失败: {}", e)),
@@ -416,6 +417,14 @@ impl eframe::App for App {
             );
             ui.separator();
 
+            let mode_now0 = self.cfg.lock().map(|c| c.mode).unwrap_or(Mode::Auto);
+            let intended: bool = match mode_now0 {
+                Mode::ForceBlock => true,
+                Mode::ForceAllow => false,
+                Mode::Auto => probe_ok != Some(true),
+            };
+            let effective = daemon && status_raw.contains("state=armed");
+
             egui::Grid::new("status_grid")
                 .num_columns(2)
                 .spacing([18.0, 6.0])
@@ -442,17 +451,21 @@ impl eframe::App for App {
                     }
                     ui.end_row();
 
-                    ui.label("当前策略:");
-                    let armed = self.cfg.lock().map(|c| c.mode).unwrap_or(Mode::Auto);
-                    let armed_now = match armed {
-                        Mode::ForceBlock => true,
-                        Mode::ForceAllow => false,
-                        Mode::Auto => probe_ok != Some(true),
-                    };
-                    if armed_now {
-                        ui.colored_label(egui::Color32::from_rgb(220, 80, 80), "封禁（武装）");
+                    ui.label("策略意图:");
+                    if intended {
+                        ui.colored_label(egui::Color32::from_rgb(220, 80, 80), "封禁");
                     } else {
                         ui.colored_label(egui::Color32::from_rgb(46, 160, 67), "放行");
+                    }
+                    ui.end_row();
+
+                    ui.label("实际生效:");
+                    if effective {
+                        ui.colored_label(egui::Color32::from_rgb(46, 160, 67), "已生效（pf 已装载）");
+                    } else if intended {
+                        ui.colored_label(egui::Color32::ORANGE, "未生效（守护未运行或未武装）");
+                    } else {
+                        ui.colored_label(egui::Color32::GRAY, "无封禁（放行）");
                     }
                     ui.end_row();
 
@@ -471,6 +484,19 @@ impl eframe::App for App {
                     ui.label(if status_raw.is_empty() { "—".into() } else { status_raw });
                     ui.end_row();
                 });
+
+            if intended && !effective {
+                ui.colored_label(
+                    egui::Color32::ORANGE,
+                    "⚠ 策略意图为封禁，但守护未生效——请点「启动守护（管理员授权）」并确认上方显示「已生效」。",
+                );
+            }
+            if effective && probe_ok == Some(true) {
+                ui.colored_label(
+                    egui::Color32::ORANGE,
+                    "⚠ 代理在线：经 Clash 远程出口的 Claude 流量不在本层管辖（v0.2 域名平面解决）。直连已封。",
+                );
+            }
 
             ui.separator();
             ui.horizontal(|ui| {

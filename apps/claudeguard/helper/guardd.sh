@@ -24,13 +24,11 @@ log(){ printf '%s %s\n' "$(date '+%F %T')" "$*" >> "$LOG"; }
 
 restore_pf(){
   [ "$APPLIED" = "1" ] || return 0
-  if [ -s "$BASE" ]; then
-    pfctl -f "$BASE" >/dev/null 2>&1 && log "pf restored from base snapshot"
-  else
-    pfctl -f /etc/pf.conf >/dev/null 2>&1 && log "pf restored from /etc/pf.conf"
-  fi
-  if [ "$PF_WAS_ENABLED" = "0" ]; then
-    pfctl -d >/dev/null 2>&1 && log "pf disabled (was disabled)"
+  pfctl -f /etc/pf.conf >/dev/null 2>&1 && log "pf restored to system default (/etc/pf.conf)"
+  ENABLED0=1
+  [ -f "$PFS" ] && grep -q 'PF_WAS_ENABLED=0' "$PFS" && ENABLED0=0
+  if [ "$ENABLED0" = "0" ]; then
+    pfctl -d >/dev/null 2>&1 && log "pf disabled (was disabled before arming)"
   fi
   APPLIED=0
   echo "state=disarmed applied=0 ts=$(date '+%F %T')" > "$STATUS"
@@ -40,13 +38,17 @@ apply_pf(){
   # args: "<ips4>" "<ips6>"
   local ips4="$1" ips6="$2"
   if [ "$APPLIED" = "0" ]; then
-    pfctl -si 2>/dev/null | grep -qi 'Status: Enabled' && PF_WAS_ENABLED=1 || PF_WAS_ENABLED=0
-    echo "PF_WAS_ENABLED=$PF_WAS_ENABLED" > "$PFS"
-    pfctl -s rules > "$BASE" 2>/dev/null
-    [ "$PF_WAS_ENABLED" = "0" ] && pfctl -E >/dev/null 2>&1
+    if [ ! -f "$PFS" ]; then
+      if pfctl -si 2>/dev/null | grep -qi 'Status: Enabled'; then
+        echo "PF_WAS_ENABLED=1" > "$PFS"
+      else
+        echo "PF_WAS_ENABLED=0" > "$PFS"
+      fi
+    fi
+    pfctl -E >/dev/null 2>&1
   fi
   {
-    cat "$BASE"
+    cat /etc/pf.conf
     [ -n "$ips4" ] && echo "block drop out inet proto tcp to { $ips4 }"
     [ -n "$ips4" ] && echo "block drop out inet proto udp to { $ips4 }"
     [ -n "$ips6" ] && echo "block drop out inet6 proto tcp to { $ips6 }"
@@ -103,9 +105,10 @@ stop)
   ;;
 run)
   mkdir -p "$DIR"
+  echo $$ > "$PIDF"
   trap cleanup TERM INT HUP
   rm -f "$STOP"
-  log "daemon started (pid=$$)"
+  log "daemon started (pid=$$, launchd-managed)"
   echo "state=disarmed applied=0 ts=$(date '+%F %T')" > "$STATUS"
   TICK=0
   while :; do
@@ -132,7 +135,7 @@ run)
     # 周期性自愈: 规则被外部覆盖时重装 (20s)
     TICK=$((TICK+1))
     if [ "$MODE" = "armed" ] && [ "$APPLIED" = "1" ] && [ "$TICK" -ge 20 ]; then
-      if ! pfctl -s rules 2>/dev/null | grep -q "block drop out inet proto tcp to"; then
+      if ! pfctl -s rules 2>/dev/null | grep -q "block drop out inet proto tcp"; then
         log "rules missing -> reapply"
         APPLIED=0; LAST_SIG=""
       fi
